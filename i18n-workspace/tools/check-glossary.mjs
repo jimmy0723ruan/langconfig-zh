@@ -9,13 +9,25 @@
  * Usage: node tools/check-glossary.mjs [--md]   (--md writes report/glossary-conflicts.md)
  */
 
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const glossaryPath = resolve(root, 'GLOSSARY.md');
-const catalogPath = resolve(root, 'app/src/i18n/locales/zh-CN.json');
+// Layout detection, three cases:
+//   dev workspace : <root>/app/package.json exists  -> app root is <root>/app
+//   published repo: the repo root is the app        -> <root>/package.json exists
+//   neither       : we are inside i18n-workspace/   -> app root is the parent
+function detectAppDir(root) {
+  if (existsSync(resolve(root, 'app/package.json'))) return resolve(root, 'app');
+  if (existsSync(resolve(root, 'package.json'))) return root;
+  return resolve(root, '..');
+}
+const appDir = detectAppDir(root);
+const glossaryPath = existsSync(resolve(root, 'GLOSSARY.md'))
+  ? resolve(root, 'GLOSSARY.md')
+  : resolve(root, 'i18n-workspace/GLOSSARY.md');
+const catalogPath = resolve(appDir, 'src/i18n/locales/zh-CN.json');
 const reportPath = resolve(root, 'report/glossary-conflicts.md');
 
 const markdown = readFileSync(glossaryPath, 'utf8');
@@ -87,6 +99,8 @@ lines.push('2. 若属语境差异（如产品名），在 `GLOSSARY.md` 追加�
 lines.push('3. 修订后重跑本脚本确认归零或收敛。');
 
 mkdirSync(resolve(root, 'report'), { recursive: true });
+// ensure report dir exists even in the published layout
+mkdirSync(resolve(dirname(reportPath)), { recursive: true });
 writeFileSync(reportPath, `${lines.join('\n')}\n`, 'utf8');
 
 console.log(`glossary terms: ${terms.length}`);

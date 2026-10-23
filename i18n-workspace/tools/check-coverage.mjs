@@ -17,13 +17,23 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const appDir = resolve(root, 'app');
+// Layout detection, three cases:
+//   dev workspace : <root>/app/package.json exists  -> app root is <root>/app
+//   published repo: the repo root is the app        -> <root>/package.json exists
+//   neither       : we are inside i18n-workspace/   -> app root is the parent
+function detectAppDir(root) {
+  if (existsSync(resolve(root, 'app/package.json'))) return resolve(root, 'app');
+  if (existsSync(resolve(root, 'package.json'))) return root;
+  return resolve(root, '..');
+}
+const appDir = detectAppDir(root);
 
 const argv = process.argv.slice(2);
 const thresholdIdx = argv.indexOf('--threshold');
 const threshold = thresholdIdx >= 0 ? Number(argv[thresholdIdx + 1]) : 450;
 const lintFileIdx = argv.indexOf('--lint-file');
-const lintFile = lintFileIdx >= 0 ? resolve(root, argv[lintFileIdx + 1]) : null;
+// Relative paths resolve from the caller's cwd (repo root in CI, workspace root locally).
+const lintFile = lintFileIdx >= 0 ? resolve(process.cwd(), argv[lintFileIdx + 1]) : null;
 
 function countFrom(text) {
   const matches = text.match(/Found hardcoded string/g);
