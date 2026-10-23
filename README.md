@@ -1,5 +1,9 @@
 # LangConfig 中文版（汉化分支）
 
+[![CI](https://github.com/jimmy0723ruan/langconfig-zh/actions/workflows/ci.yml/badge.svg)](https://github.com/jimmy0723ruan/langconfig-zh/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/jimmy0723ruan/langconfig-zh)](https://github.com/jimmy0723ruan/langconfig-zh/releases)
+
 > 基于 [LangConfig](https://github.com/LangConfig/langconfig)（MIT）的中文化与国际化改造。
 > 上游英文说明见 [`README.upstream.md`](README.upstream.md)。
 

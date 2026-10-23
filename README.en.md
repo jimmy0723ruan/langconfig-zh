@@ -1,5 +1,8 @@
 # LangConfig — Chinese Localization
 
+[![CI](https://github.com/jimmy0723ruan/langconfig-zh/actions/workflows/ci.yml/badge.svg)](https://github.com/jimmy0723ruan/langconfig-zh/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 > A fully localised Chinese edition of [LangConfig](https://github.com/LangConfig/langconfig) (MIT).
 > Chinese documentation: [`README.md`](README.md). Upstream docs: [`README.upstream.md`](README.upstream.md).
 
