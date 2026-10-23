@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📖 安装与常见问题
+    url: https://github.com/jimmy0723ruan/langconfig-zh/blob/main/docs/INSTALL.zh-CN.md
+    about: 启动失败、端口冲突、数据库连接等问题先看这里
+  - name: 📊 汉化覆盖率与已知未译项
+    url: https://github.com/jimmy0723ruan/langconfig-zh/blob/main/i18n-workspace/report/coverage.md
+    about: 确认某个英文是否属于「刻意保留」
+  - name: ⬆️ 上游项目
+    url: https://github.com/LangConfig/langconfig
+    about: 与本汉化无关的功能问题请反馈给上游

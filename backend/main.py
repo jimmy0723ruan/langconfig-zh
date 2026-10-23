@@ -342,6 +342,7 @@ app.include_router(hermes.router)  # Hermes approval-gated drafts
 app.include_router(platform_brain.router)  # Platform Brain source catalog
 
 if __name__ == "__main__":
+    import os
     import sys
 
     # Windows-specific: Use SelectorEventLoop for psycopg compatibility
@@ -352,9 +353,11 @@ if __name__ == "__main__":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
         logger.info("Windows detected: Using SelectorEventLoop for psycopg compatibility")
 
+    # reload 默认关闭：Windows 上 reloader 会被自身临时文件反复触发导致无限重启。
+    # 需要热重载时设 LANGCONFIG_RELOAD=1，或直接用 backend/run_local.py。
     uvicorn.run(
         "main:app",
-        host="localhost",
-        port=8780,
-        reload=True
+        host=os.environ.get("LANGCONFIG_HOST", "localhost"),
+        port=int(os.environ.get("LANGCONFIG_PORT", "8780")),
+        reload=os.environ.get("LANGCONFIG_RELOAD", "0") == "1",
     )

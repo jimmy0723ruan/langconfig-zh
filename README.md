@@ -31,7 +31,21 @@
 
 ---
 
-## 二、技术方案要点
+## 二、效果预览
+
+| 首页 | 工作流画布 |
+| --- | --- |
+| ![首页](docs/screenshots/home.png) | ![画布](docs/screenshots/studio.png) |
+
+| 智能体库 | 教学文档 |
+| --- | --- |
+| ![智能体](docs/screenshots/agents.png) | ![教学](docs/screenshots/docs.png) |
+
+![设置](docs/screenshots/settings.png)
+
+---
+
+## 三、技术方案要点
 
 1. **英文原文即 key**：`t("Save")` → `{"Save": "保存"}`，不用设计 key 命名；
    漏翻只会回退显示英文，不会出现 key 名或空白。
@@ -42,7 +56,7 @@
 
 ---
 
-## 三、目录结构
+## 四、目录结构
 
 ```
 .
@@ -62,14 +76,14 @@
 
 ---
 
-## 四、快速开始
+## 五、快速开始
 
 ```bash
 npm install
 npm rebuild esbuild          # npm 11 会拦 esbuild 的 postinstall
 
-# 后端（需要 PostgreSQL + pgvector，见 docs/SETUP.md）
-cd backend && python main.py
+# 后端（需要 PostgreSQL + pgvector，保姆级步骤见 docs/INSTALL.zh-CN.md）
+cd backend && python run_local.py
 
 # 前端
 npm run dev                  # http://localhost:1425
@@ -79,7 +93,7 @@ npm run dev                  # http://localhost:1425
 
 ---
 
-## 五、把汉化应用到你的 LangConfig
+## 六、把汉化应用到你的 LangConfig
 
 不需要整个仓库，只要补丁文件：
 
@@ -99,7 +113,7 @@ npm install && npm rebuild esbuild
 
 ---
 
-## 六、验证
+## 七、验证
 
 ```bash
 npm run typecheck                  # 类型（含 i18next key 类型检查）
@@ -118,7 +132,7 @@ node i18n-workspace/tools/check-glossary.mjs   # 术语一致性
 
 ---
 
-## 七、开发阶段
+## 八、开发阶段
 
 | 阶段 | 内容 |
 | --- | --- |
@@ -134,7 +148,7 @@ node i18n-workspace/tools/check-glossary.mjs   # 术语一致性
 
 ---
 
-## 八、已知限制
+## 九、已知限制
 
 - **工作流默认名** `Untitled Workflow` 是数据值（会写入后端），未翻译。
 - **模型标识、图标名、示例占位符**保持英文，属有意保留。
@@ -145,6 +159,6 @@ node i18n-workspace/tools/check-glossary.mjs   # 术语一致性
 
 ---
 
-## 九、许可
+## 十、许可
 
 沿用上游 MIT 许可，见 [`LICENSE`](LICENSE)。上游版权归 Cade Russell (Ghost Peony)。

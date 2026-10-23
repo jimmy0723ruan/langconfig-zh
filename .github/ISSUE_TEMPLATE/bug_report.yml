@@ -1,0 +1,67 @@
+name: 🐛 缺陷报告
+description: 报告汉化、界面或功能上的问题
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。提交前请先搜索已有 issue，并用 `docs/INSTALL.zh-CN.md` 的常见问题一节自查。
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 问题描述
+      description: 发生了什么？期望的结果是什么？
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开 …
+        2. 点击 …
+        3. 看到 …
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: 影响范围
+      options:
+        - 中文翻译（术语、错译、漏译）
+        - 语言切换 / 首访语言
+        - 界面布局（溢出、截断）
+        - 工作流画布
+        - 智能体 / 知识库
+        - 后端接口报错
+        - 安装 / 启动
+        - 其他
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: 版本 / 提交
+      description: 仓库版本标签或 `git rev-parse --short HEAD` 的结果
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: 操作系统
+      options: [Windows, macOS, Linux, 其他]
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志 / 截图
+      description: 浏览器控制台输出、后端日志或界面截图（可直接粘贴图片）
+    validations:
+      required: false

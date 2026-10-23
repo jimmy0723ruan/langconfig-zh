@@ -1,0 +1,50 @@
+name: 🌏 翻译改进
+description: 报告错译、术语不一致或建议更好的译法
+labels: ["translation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        术语以 [`GLOSSARY.md`](https://github.com/jimmy0723ruan/langconfig-zh/blob/main/i18n-workspace/GLOSSARY.md) 为准。
+        提交前可先跑 `node i18n-workspace/tools/check-glossary.mjs` 看是否已有记录。
+
+  - type: input
+    id: where
+    attributes:
+      label: 出现位置
+      description: 页面路径 / 菜单名 / 截图
+      placeholder: 设置 → 通用 → 自动保存
+    validations:
+      required: true
+
+  - type: input
+    id: current
+    attributes:
+      label: 当前译文
+      placeholder: 自动保存
+    validations:
+      required: true
+
+  - type: input
+    id: suggested
+    attributes:
+      label: 建议译文
+      placeholder: 自动存档
+    validations:
+      required: true
+
+  - type: textarea
+    id: reason
+    attributes:
+      label: 理由
+      description: 术语表依据、语境说明或参考链接
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: 影响面
+      options:
+        - label: 该译法在全站多处出现，建议统一调整
+        - label: 仅此一处语境不同
