@@ -1,0 +1,311 @@
+/**
+ * Copyright (c) 2025 Cade Russell (Ghost Peony)
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+import { useState, useEffect } from 'react';
+import { ChevronDown, Loader, Search, Clock } from 'lucide-react';
+import type { DeepAgent } from '../types/chat';
+import apiClient from '../../../lib/api-client';
+import { useTranslation } from 'react-i18next';
+
+interface AgentSelectorProps {
+  selectedAgentId: number | null;
+  onSelectAgent: (agentId: number) => void;
+  onClose?: () => void;
+}
+
+export default function AgentSelector({
+  selectedAgentId,
+  onSelectAgent,
+  onClose
+}: AgentSelectorProps) {
+  const { t } = useTranslation();
+  const [isOpen, setIsOpen] = useState(false);
+  const [agents, setAgents] = useState<DeepAgent[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [recentAgents, setRecentAgents] = useState<number[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  const selectedAgent = agents.find(a => a.id === selectedAgentId);
+
+  // Load recent agents from localStorage
+  useEffect(() => {
+    const stored = localStorage.getItem('chat_recentAgents');
+    if (stored) {
+      try {
+        setRecentAgents(JSON.parse(stored));
+      } catch (e) {
+        console.error('Failed to parse recent agents:', e);
+      }
+    }
+  }, []);
+
+  // Fetch agents when dropdown opens
+  useEffect(() => {
+    if (isOpen && agents.length === 0) {
+      fetchAgents();
+    }
+  }, [isOpen]);
+
+  const fetchAgents = async () => {
+    setIsLoading(true);
+    try {
+      // Use the correct API method with public_only=false to get all agents
+      const response = await apiClient.listDeepAgents({ public_only: false });
+      console.log('Fetched agents:', response.data);
+      setAgents(response.data || []);
+    } catch (error) {
+      console.error('Failed to fetch agents:', error);
+      setAgents([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSelectAgent = (agentId: number) => {
+    onSelectAgent(agentId);
+
+    // Add to recent agents
+    const updated = [agentId, ...recentAgents.filter(id => id !== agentId)].slice(0, 5);
+    setRecentAgents(updated);
+    localStorage.setItem('chat_recentAgents', JSON.stringify(updated));
+
+    setIsOpen(false);
+    if (onClose) onClose();
+  };
+
+  // Get unique categories
+  const categories = Array.from(new Set(agents.map(a => a.category).filter(Boolean)));
+
+  // Filter agents
+  const filteredAgents = agents.filter(agent => {
+    const matchesSearch =
+      agent.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      agent.description?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = !selectedCategory || agent.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  // Get recent agents (that exist in the list)
+  const recentAgentsList = recentAgents
+    .map(id => agents.find(a => a.id === id))
+    .filter(Boolean) as DeepAgent[];
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2 border-2 px-4 py-2 font-mono text-xs font-semibold uppercase tracking-[0.12em] transition-[transform,box-shadow,background-color] hover:translate-x-0.5 hover:translate-y-0.5"
+        style={{
+          borderColor: 'var(--color-border-dark)',
+          backgroundColor: 'var(--surface-1)',
+          color: 'var(--color-text-primary)',
+          boxShadow: 'var(--shadow-card-sm)',
+          borderRadius: 'var(--radius-control)',
+        }}
+      >
+        <span>
+          {selectedAgent ? selectedAgent.name : 'Select Agent'}
+        </span>
+        <ChevronDown className="w-4 h-4" />
+      </button>
+
+      {isOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setIsOpen(false)}
+          />
+          <div
+            className="absolute left-0 z-50 mt-2 flex max-h-[32rem] w-96 flex-col overflow-hidden border-2"
+            style={{
+              backgroundColor: 'var(--surface-1)',
+              borderColor: 'var(--color-border-dark)',
+              boxShadow: 'var(--shadow-card)',
+              borderRadius: 'var(--radius-card)',
+            }}
+          >
+            {/* Search */}
+            <div
+              className="border-b-2 p-3"
+              style={{ borderColor: 'var(--color-border-dark)' }}
+            >
+              <div className="relative">
+                <Search
+                  className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
+                  style={{ color: 'var(--color-text-muted)' }}
+                />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder={t('Search agents...')}
+                  className="w-full border-2 py-2 pl-10 pr-3 text-sm focus:outline-none focus:ring-2"
+                  style={{
+                    backgroundColor: 'var(--color-input-background)',
+                    borderColor: 'var(--color-border-dark)',
+                    color: 'var(--color-text-primary)',
+                  }}
+                  autoFocus
+                />
+              </div>
+
+              {/* Category Filter */}
+              {categories.length > 0 && (
+                <div className="flex gap-2 mt-2 overflow-x-auto pb-1">
+                  <button
+                    onClick={() => setSelectedCategory(null)}
+                    className="whitespace-nowrap border-2 px-2 py-1 font-mono text-xs font-semibold uppercase tracking-[0.12em] transition-colors"
+                    style={{
+                      backgroundColor: !selectedCategory ? 'var(--color-primary)' : 'transparent',
+                      color: !selectedCategory ? 'var(--color-on-accent)' : 'var(--color-text-muted)',
+                      borderColor: 'var(--color-border-dark)',
+                    }}
+                  >
+                    {t('All')}
+                  </button>
+                  {categories.map(category => (
+                    <button
+                      key={category}
+                      onClick={() => setSelectedCategory(category)}
+                      className="whitespace-nowrap border-2 px-2 py-1 font-mono text-xs font-semibold uppercase tracking-[0.12em] transition-colors"
+                      style={{
+                        backgroundColor: selectedCategory === category ? 'var(--color-primary)' : 'transparent',
+                        color: selectedCategory === category ? 'var(--color-on-accent)' : 'var(--color-text-muted)',
+                        borderColor: 'var(--color-border-dark)',
+                      }}
+                    >
+                      {category}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Agent List */}
+            <div className="overflow-y-auto flex-1">
+              {isLoading ? (
+                <div className="p-4 flex items-center justify-center gap-2" style={{ color: 'var(--color-text-muted)' }}>
+                  <Loader className="w-4 h-4 animate-spin" />
+                  <span className="text-sm">{t('Loading agents...')}</span>
+                </div>
+              ) : agents.length === 0 ? (
+                <div className="p-4 text-center text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                  {t('No agents available. Create a deep agent first.')}
+                </div>
+              ) : (
+                <>
+                  {/* Recent Agents */}
+                  {!searchQuery && !selectedCategory && recentAgentsList.length > 0 && (
+                    <>
+                      <div
+                        className="px-4 py-2 text-xs font-semibold flex items-center gap-2"
+                        style={{ color: 'var(--color-text-muted)' }}
+                      >
+                        <Clock className="w-3 h-3" />
+                        {t('RECENT')}
+                      </div>
+                      {recentAgentsList.map((agent) => (
+                        <AgentItem
+                          key={`recent-${agent.id}`}
+                          agent={agent}
+                          isSelected={selectedAgentId === agent.id}
+                          onClick={() => handleSelectAgent(agent.id)}
+                        />
+                      ))}
+                      <div
+                        className="my-2 border-t"
+                        style={{ borderColor: 'var(--color-border-dark)' }}
+                      />
+                    </>
+                  )}
+
+                  {/* All Agents */}
+                  {filteredAgents.length === 0 ? (
+                    <div className="p-4 text-center text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                      {t('No agents found matching your search')}
+                    </div>
+                  ) : (
+                    filteredAgents.map((agent) => (
+                      <AgentItem
+                        key={agent.id}
+                        agent={agent}
+                        isSelected={selectedAgentId === agent.id}
+                        onClick={() => handleSelectAgent(agent.id)}
+                      />
+                    ))
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+interface AgentItemProps {
+  agent: DeepAgent;
+  isSelected: boolean;
+  onClick: () => void;
+}
+
+function AgentItem({ agent, isSelected, onClick }: AgentItemProps) {
+  const [isHovered, setIsHovered] = useState(false);
+
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      className="w-full px-4 py-3 text-left transition-colors border-b"
+      style={{
+        borderColor: 'var(--color-border-dark)',
+        backgroundColor: isHovered ? 'var(--color-primary)' : 'transparent',
+      }}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <div
+              className="flex items-center gap-2 truncate text-sm font-medium"
+            style={{
+              color: isHovered ? 'var(--color-on-accent)' : isSelected ? 'var(--color-primary)' : 'var(--color-text-primary)',
+            }}
+          >
+            {agent.name}
+          </div>
+          {agent.description && (
+            <div
+              className="text-xs mt-1 line-clamp-2"
+              style={{ color: isHovered ? 'var(--color-on-accent)' : 'var(--color-text-muted)' }}
+            >
+              {agent.description}
+            </div>
+          )}
+          {agent.category && (
+            <div
+              className="mt-1 inline-block border px-2 py-0.5 font-mono text-xs uppercase tracking-[0.1em]"
+              style={{
+                backgroundColor: isHovered ? 'rgba(255, 255, 255, 0.2)' : 'var(--color-category-background)',
+                borderColor: isHovered ? 'white' : 'var(--color-border-dark)',
+                color: isHovered ? 'white' : 'var(--color-text-muted)',
+              }}
+            >
+              {agent.category}
+            </div>
+          )}
+        </div>
+        {isSelected && (
+          <span className="material-symbols-outlined text-base" style={{ color: isHovered ? 'white' : 'var(--color-primary)' }}>
+            check
+          </span>
+        )}
+      </div>
+    </button>
+  );
+}

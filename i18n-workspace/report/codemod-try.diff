@@ -1,0 +1,288 @@
+--- a/src/pages/ProjectsPage.tsx
++++ b/src/pages/ProjectsPage.tsx
+@@ -7,6 +7,7 @@
+ 
+ import { useState, useEffect } from 'react';
+ import apiClient from '../lib/api-client';
++import { useTranslation } from 'react-i18next';
+ 
+ interface ProjectsViewProps {
+   onProjectSelect: (projectId: number) => void;
+@@ -22,6 +23,7 @@
+ }
+ 
+ export default function ProjectsView({ onProjectSelect }: ProjectsViewProps) {
++  const { t } = useTranslation();
+   const [projects, setProjects] = useState<Project[]>([]);
+   const [loading, setLoading] = useState(true);
+   const [showCreateModal, setShowCreateModal] = useState(false);
+@@ -73,7 +75,7 @@
+     <section className="flex-1 flex flex-col rounded-xl frosted-glass overflow-hidden p-6">
+       <div className="flex items-center justify-between mb-6">
+         <h2 className="text-2xl font-bold text-[var(--text-light-primary)] dark:text-[var(--text-dark-primary)]">
+-          Projects
++          {t('Projects')}
+         </h2>
+         <button
+           onClick={() => setShowCreateModal(true)}
+@@ -80,7 +82,7 @@
+           className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--primary)] text-white hover:opacity-90 transition-all button-90s"
+         >
+           <span className="material-symbols-outlined">add</span>
+-          New Project
++          {t('New Project')}
+         </button>
+       </div>
+ 
+@@ -87,7 +89,7 @@
+       {loading ? (
+         <div className="flex-1 flex items-center justify-center">
+           <div className="text-[var(--text-light-secondary)] dark:text-[var(--text-dark-secondary)]">
+-            Loading projects...
++            {t('Loading projects...')}
+           </div>
+         </div>
+       ) : projects.length === 0 ? (
+@@ -96,7 +98,7 @@
+             folder_off
+           </span>
+           <p className="text-[var(--text-light-secondary)] dark:text-[var(--text-dark-secondary)] text-center">
+-            No projects yet. Create your first project to get started!
++            {t('No projects yet. Create your first project to get started!')}
+           </p>
+         </div>
+       ) : (
+@@ -140,12 +142,12 @@
+         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 cursor-pointer" onClick={() => setShowCreateModal(false)}>
+           <div className="bg-[var(--background-light)] dark:bg-[var(--background-dark)] rounded-xl p-6 w-full max-w-md frosted-glass" onClick={(e) => e.stopPropagation()}>
+             <h3 className="text-xl font-bold text-[var(--text-light-primary)] dark:text-[var(--text-dark-primary)] mb-4">
+-              Create New Project
++              {t('Create New Project')}
+             </h3>
+             <div className="space-y-4">
+               <div>
+                 <label className="block text-sm font-medium text-[var(--text-light-secondary)] dark:text-[var(--text-dark-secondary)] mb-2">
+-                  Project Name
++                  {t('Project Name')}
+                 </label>
+                 <input
+                   type="text"
+@@ -152,18 +154,18 @@
+                   value={newProject.name}
+                   onChange={(e) => setNewProject({ ...newProject, name: e.target.value })}
+                   className="w-full px-3 py-2 rounded-lg shadow-inner-90s bg-[var(--background-light)] dark:bg-[var(--background-dark)] text-[var(--text-light-primary)] dark:text-[var(--text-dark-primary)] border-none focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+-                  placeholder="My Awesome Project"
++                  placeholder={t('My Awesome Project')}
+                 />
+               </div>
+               <div>
+                 <label className="block text-sm font-medium text-[var(--text-light-secondary)] dark:text-[var(--text-dark-secondary)] mb-2">
+-                  Description (Optional)
++                  {t('Description (Optional)')}
+                 </label>
+                 <textarea
+                   value={newProject.description}
+                   onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
+                   className="w-full px-3 py-2 rounded-lg shadow-inner-90s bg-[var(--background-light)] dark:bg-[var(--background-dark)] text-[var(--text-light-primary)] dark:text-[var(--text-dark-primary)] border-none focus:outline-none focus:ring-2 focus:ring-[var(--primary)] min-h-[80px]"
+-                  placeholder="Describe what this project is about..."
++                  placeholder={t('Describe what this project is about...')}
+                 />
+               </div>
+             </div>
+@@ -172,7 +174,7 @@
+                 onClick={() => setShowCreateModal(false)}
+                 className="flex-1 px-4 py-2 rounded-lg bg-gray-500/20 text-[var(--text-light-primary)] dark:text-[var(--text-dark-primary)] hover:bg-gray-500/30 transition-all"
+               >
+-                Cancel
++                {t('Cancel')}
+               </button>
+               <button
+                 onClick={handleCreateProject}
+@@ -179,7 +181,7 @@
+                 className="flex-1 px-4 py-2 rounded-lg bg-[var(--primary)] text-white hover:opacity-90 transition-all button-90s"
+                 disabled={!newProject.name.trim()}
+               >
+-                Create
++                {t('Create')}
+               </button>
+             </div>
+           </div>
+--- a/src/features/workflows/canvas/dialogs/CreateWorkflowDialog.tsx
++++ b/src/features/workflows/canvas/dialogs/CreateWorkflowDialog.tsx
+@@ -6,6 +6,7 @@
+  */
+ 
+ import { memo } from 'react';
++import { useTranslation } from 'react-i18next';
+ 
+ interface CreateWorkflowDialogProps {
+   isOpen: boolean;
+@@ -25,6 +26,7 @@
+   workflowName,
+   setWorkflowName,
+ }: CreateWorkflowDialogProps) {
++  const { t } = useTranslation();
+   if (!isOpen) return null;
+ 
+   const handleClose = () => {
+@@ -43,13 +45,13 @@
+     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+       <div className="bg-white dark:bg-panel-dark rounded-lg max-w-md w-full p-6 shadow-2xl">
+         <h3 className="text-lg font-bold mb-4" style={{ color: 'var(--color-text-primary)' }}>
+-          Create New Workflow
++          {t('Create New Workflow')}
+         </h3>
+ 
+         <form onSubmit={handleSubmit}>
+           <div className="mb-4">
+             <label className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text-primary)' }}>
+-              Workflow Name
++              {t('Workflow Name')}
+             </label>
+             <input
+               type="text"
+@@ -60,7 +62,7 @@
+                 backgroundColor: 'var(--color-input-background)',
+                 color: 'var(--color-text-primary)'
+               }}
+-              placeholder="Enter workflow name..."
++              placeholder={t('Enter workflow name...')}
+               autoFocus
+             />
+           </div>
+@@ -72,7 +74,7 @@
+               className="px-4 py-2 text-sm font-medium border border-gray-300 dark:border-border-dark rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 hover:border-gray-400 dark:hover:border-border-light transition-all"
+               style={{ color: 'var(--color-text-primary)' }}
+             >
+-              Cancel
++              {t('Cancel')}
+             </button>
+             <button
+               type="submit"
+@@ -79,7 +81,7 @@
+               disabled={!workflowName.trim()}
+               className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:brightness-110 hover:shadow-lg transition-all disabled:opacity-50"
+             >
+-              Create Workflow
++              {t('Create Workflow')}
+             </button>
+           </div>
+         </form>
+--- a/src/features/settings/ui/PIIProfilesSettings.tsx
++++ b/src/features/settings/ui/PIIProfilesSettings.tsx
+@@ -1,6 +1,7 @@
+ import { useCallback, useEffect, useState } from 'react';
+ import { apiClient } from '@/lib/api-client';
+ import SettingsSection from './SettingsSection';
++import { useTranslation } from 'react-i18next';
+ 
+ // ─── Types ─────────────────────────────────────────────────────────────────
+ 
+@@ -53,6 +54,7 @@
+   onChange: (tags: string[]) => void;
+   placeholder: string;
+ }) {
++  const { t } = useTranslation();
+   const [input, setInput] = useState('');
+ 
+   const addTag = () => {
+@@ -107,7 +109,7 @@
+           className="px-3 py-2 text-sm rounded"
+           style={{ backgroundColor: 'var(--color-primary)', color: 'white' }}
+         >
+-          Add
++          {t('Add')}
+         </button>
+       </div>
+     </div>
+@@ -450,6 +452,7 @@
+ // ─── Main component ────────────────────────────────────────────────────────
+ 
+ export default function PIIProfilesSettings() {
++  const { t } = useTranslation();
+   const [profiles, setProfiles] = useState<PIIProfile[]>([]);
+   const [availableTypes, setAvailableTypes] = useState<string[]>([]);
+   const [editing, setEditing] = useState<EditablePIIProfile | null>(null);
+@@ -513,8 +516,8 @@
+ 
+   return (
+     <SettingsSection
+-      title="PII Profiles"
+-      description="Named redaction rules that agents and workflow nodes can apply. Blocklists, allowlists, and custom PII types."
++      title={t('PII Profiles')}
++      description={t('Named redaction rules that agents and workflow nodes can apply. Blocklists, allowlists, and custom PII types.')}
+     >
+       <div className="flex justify-end mb-4">
+         <button
+@@ -522,13 +525,13 @@
+           className="px-4 py-2 text-sm rounded"
+           style={{ backgroundColor: 'var(--color-primary)', color: 'white' }}
+         >
+-          + New Profile
++          {t('+ New Profile')}
+         </button>
+       </div>
+ 
+       {loading ? (
+         <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+-          Loading...
++          {t('Loading...')}
+         </p>
+       ) : profiles.length === 0 ? (
+         <div
+@@ -535,7 +538,7 @@
+           className="p-8 text-center rounded border"
+           style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}
+         >
+-          <p className="text-sm">No profiles yet. Create one to get started.</p>
++          <p className="text-sm">{t('No profiles yet. Create one to get started.')}</p>
+         </div>
+       ) : (
+         <div className="space-y-2">
+@@ -555,11 +558,11 @@
+                   </div>
+                 )}
+                 <div className="text-xs mt-1 flex gap-3" style={{ color: 'var(--color-text-muted)' }}>
+-                  {p.blocklist.length > 0 && <span>Block: {p.blocklist.length}</span>}
+-                  {p.allowlist.length > 0 && <span>Allow: {p.allowlist.length}</span>}
+-                  {p.custom_types.length > 0 && <span>Custom: {p.custom_types.length}</span>}
++                  {p.blocklist.length > 0 && <span>{t('Block:')} {p.blocklist.length}</span>}
++                  {p.allowlist.length > 0 && <span>{t('Allow:')} {p.allowlist.length}</span>}
++                  {p.custom_types.length > 0 && <span>{t('Custom:')} {p.custom_types.length}</span>}
+                   <span>
+-                    Built-ins: {p.enabled_builtin_types.length === 0 ? 'all' : p.enabled_builtin_types.length}
++                    {t('Built-ins:')} {p.enabled_builtin_types.length === 0 ? 'all' : p.enabled_builtin_types.length}
+                   </span>
+                 </div>
+               </div>
+@@ -579,13 +582,13 @@
+                   className="px-3 py-1.5 text-sm rounded border"
+                   style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-primary)' }}
+                 >
+-                  Edit
++                  {t('Edit')}
+                 </button>
+                 <button
+                   onClick={() => deleteProfile(p.id)}
+                   className="px-3 py-1.5 text-sm rounded text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
+                 >
+-                  Delete
++                  {t('Delete')}
+                 </button>
+               </div>
+             </div>
+
+=== codemod summary ===
+mode          : DRY-RUN (diff only)
+files scanned : 3
+files changed : 3
+jsx text      : 43
+attributes    : 13
+skipped       : 6
+unique keys   : 53
+skip reasons  : {
+  icon: 3,
+  'identifier-or-icon': 1,
+  'no-letters': 1,
+  't-name-conflict': 1
+}

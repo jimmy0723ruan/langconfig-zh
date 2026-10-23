@@ -1,0 +1,23 @@
+{
+  "Agent A → Agent B → Agent C.": "智能体 A → 智能体 B → 智能体 C。",
+  "Output of one feeds into the next.": "前一个的输出会流入下一个。",
+  "Subagent task calls from eval are not parent tool calls, so put approval rules inside subagents for sensitive work.": "eval 中的子智能体任务调用不算父级工具调用，因此敏感工作应把审批规则放进子智能体内部。",
+  "Switch to Deep Agents when you need long-running workflows, human approval steps, or multi-agent coordination.": "需要长时间运行的工作流、人工审批环节或多智能体协调时，改用 Deep Agents。",
+  "When you enable a tool in your agent configuration, LangConfig automatically:": "当你在智能体配置中启用工具时，LangConfig 会自动：",
+  "Cache frequently-used system prompts to reduce latency and costs by up to 90%.": "缓存常用的系统提示词，可将延迟与成本降低最多 90%。",
+  "Each agent should have one clear responsibility.": "每个智能体应有明确的单一职责。",
+  "Don't create a \"do everything\" agent.": "不要创建「什么都做」的智能体。",
+  "Instead, compose specialized agents into workflows.": "而应把专用智能体组合成工作流。",
+  "You can chain multiple middleware layers (e.g., Logging → Guardrails → RateLimit → Agent) to build robust pipelines.": "可以把多层中间件串联起来（例如 日志 → 护栏 → 限流 → 智能体），构建健壮的流水线。",
+  "• Implement retry logic": "• 实现重试逻辑",
+  "• Log all agent decisions": "• 记录智能体的所有决策",
+  "• Mock LLMs in unit tests": "• 在单元测试中模拟大模型",
+  "• Monitor token usage": "• 监控 Token 用量",
+  "• Set temperature=0 for determinism": "• 将 temperature 设为 0 以获得确定性",
+  "by connecting multiple agents to the same input": "通过将多个智能体连接到同一输入",
+  "conditional edges": "条件连线",
+  "human-in-the-loop": "人工介入",
+  "nodes for review and approval steps": "用于审核与审批环节的节点",
+  "parallel execution": "并行执行",
+  "to route based on agent outputs": "来根据智能体输出进行路由"
+}

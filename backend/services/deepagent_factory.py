@@ -1,0 +1,1398 @@
+# Copyright (c) 2025 Cade Russell (Ghost Peony)
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+"""
+DeepAgent Factory Service.
+
+Creates DeepAgents using the deepagents library while integrating
+with LangConfig's existing agent factory infrastructure.
+"""
+
+import logging
+from typing import Dict, Any, List, Optional, Tuple
+from langchain_core.tools import BaseTool
+from langgraph.graph.state import CompiledStateGraph
+
+from models.deep_agent import (
+    DeepAgentConfig,
+    SubAgentConfig,
+    MiddlewareConfig,
+    BackendConfig,
+    GuardrailsConfig
+)
+from models.enums import SubAgentType, MiddlewareType, BackendType
+from core.middleware.deep import DeepAgentsMiddlewareFactory
+from core.agents.factory import AgentFactory
+
+logger = logging.getLogger(__name__)
+
+MANDATORY_APPROVAL_TOOLS = {"langconfig_apply_draft", "codex_run_task"}
+
+
+def _with_mandatory_approval_interrupts(
+    configured: Optional[Dict[str, Any]],
+    tool_names: set[str],
+) -> Dict[str, Any]:
+    """Return interrupts with privileged platform tools forced to approval."""
+    interrupts = dict(configured or {})
+    for tool_name in MANDATORY_APPROVAL_TOOLS & tool_names:
+        interrupts[tool_name] = True
+    return interrupts
+
+
+class DeepAgentFactory:
+    """
+    Factory for creating DeepAgents with full middleware and backend support.
+    Wraps the deepagents library while integrating with LangConfig infrastructure.
+    """
+    # Note: Type validation now handled by Pydantic enums in models.enums
+    # No need for VALID_* constants anymore
+
+    @staticmethod
+    def _validate_deep_agent_config(config: DeepAgentConfig) -> List[str]:
+        """
+        Basic validation of DeepAgent configuration.
+
+        Returns:
+            List of error/warning messages (empty if valid)
+        """
+        errors = []
+
+        # 1. Required: model must be set
+        if not config.model:
+            errors.append("model is required")
+
+        # 2. Required: system_prompt must be set
+        if not config.system_prompt:
+            errors.append("system_prompt is required")
+
+        # 3. Validate temperature bounds (0.0 to 2.0)
+        if not (0.0 <= config.temperature <= 2.0):
+            errors.append(f"temperature must be between 0.0 and 2.0, got {config.temperature}")
+
+        # 4-6. Type and consistency validation now handled by Pydantic validators
+        # Enum types ensure only valid values are accepted
+        # @model_validator decorators check cross-field constraints
+        # No runtime validation needed here
+
+        return errors
+
+    @staticmethod
+    def _resolve_ptc_allowlist(config: DeepAgentConfig, available_tools: List[BaseTool]) -> Optional[List[BaseTool]]:
+        """Resolve interpreter PTC tool names to loaded BaseTool instances."""
+        interpreter = getattr(config, "interpreter", None)
+        allowlist = getattr(interpreter, "ptc_tool_allowlist", None) or []
+        if not allowlist:
+            return None
+
+        if "task" in allowlist:
+            raise ValueError(
+                "The interpreter PTC allowlist cannot include 'task'. "
+                "Dynamic subagents are exposed through the interpreter's top-level task() helper."
+            )
+
+        tools_by_name = {
+            tool.name: tool
+            for tool in available_tools
+            if isinstance(tool, BaseTool) and getattr(tool, "name", None)
+        }
+        missing = [name for name in allowlist if name not in tools_by_name]
+        if missing:
+            available = ", ".join(sorted(tools_by_name.keys())) or "none"
+            raise ValueError(
+                "Interpreter PTC tool allowlist contains unknown tools: "
+                f"{', '.join(missing)}. Available tools: {available}"
+            )
+
+        return [tools_by_name[name] for name in allowlist]
+
+    @staticmethod
+    def _build_code_interpreter_middleware(config: DeepAgentConfig, available_tools: List[BaseTool]) -> Optional[Any]:
+        """Create QuickJS CodeInterpreterMiddleware when explicitly enabled."""
+        interpreter = getattr(config, "interpreter", None)
+        if not interpreter or not interpreter.enabled:
+            return None
+
+        try:
+            from langchain_quickjs import CodeInterpreterMiddleware
+        except ImportError as exc:
+            raise RuntimeError(
+                "Dynamic subagents require the optional QuickJS interpreter package. "
+                "Install backend requirements with 'deepagents[quickjs]' and "
+                "'langchain-quickjs>=0.3.2,<0.4'."
+            ) from exc
+
+        ptc_tools = DeepAgentFactory._resolve_ptc_allowlist(config, available_tools)
+        middleware = CodeInterpreterMiddleware(
+            memory_limit=interpreter.memory_limit_bytes,
+            timeout=interpreter.timeout_seconds,
+            max_ptc_calls=interpreter.max_ptc_calls,
+            max_result_chars=interpreter.max_result_chars,
+            capture_console=interpreter.capture_console,
+            subagents=interpreter.dynamic_subagents,
+            ptc=ptc_tools,
+            mode=interpreter.mode,
+        )
+        logger.info(
+            "QuickJS interpreter enabled "
+            "(mode=%s, dynamic_subagents=%s, ptc_tools=%s)",
+            interpreter.mode,
+            interpreter.dynamic_subagents,
+            [tool.name for tool in ptc_tools] if ptc_tools else [],
+        )
+        return middleware
+
+    @staticmethod
+    def _schema_model_name(sub_config: SubAgentConfig) -> str:
+        """Build a valid Pydantic class name for inline subagent schemas."""
+        import re
+
+        raw_name = sub_config.response_schema_name or f"{sub_config.name}_result"
+        parts = [part for part in re.split(r"[^a-zA-Z0-9]+", raw_name) if part]
+        model_name = "".join(part[:1].upper() + part[1:] for part in parts)
+        if not model_name or not model_name[0].isalpha():
+            model_name = f"Subagent{model_name or 'Result'}"
+        return model_name
+
+    @staticmethod
+    def _resolve_subagent_response_format(sub_config: SubAgentConfig) -> Optional[Any]:
+        """Resolve configured subagent structured output into LangChain response_format."""
+        output_schema = None
+
+        if sub_config.response_schema:
+            from models.custom_schema import json_schema_to_pydantic
+
+            output_schema = json_schema_to_pydantic(
+                DeepAgentFactory._schema_model_name(sub_config),
+                sub_config.response_schema,
+            )
+        elif sub_config.response_schema_name:
+            from models.custom_schema import OutputSchemaRegistry
+
+            output_schema = OutputSchemaRegistry.get(sub_config.response_schema_name)
+            if not output_schema:
+                logger.warning(
+                    "Unknown subagent response schema '%s' for subagent '%s'",
+                    sub_config.response_schema_name,
+                    sub_config.name,
+                )
+                return None
+
+        if output_schema is None:
+            return None
+
+        strategy = sub_config.response_format_strategy
+        if strategy == "provider":
+            from langchain.agents.structured_output import ProviderStrategy
+
+            return ProviderStrategy(output_schema)
+        if strategy == "tool":
+            from langchain.agents.structured_output import ToolStrategy
+
+            return ToolStrategy(output_schema)
+        return output_schema
+
+    @staticmethod
+    async def create_deep_agent(
+        config: DeepAgentConfig,
+        project_id: int,
+        task_id: int,
+        context: str,
+        mcp_manager=None,
+        vector_store=None,
+        workflow_id: Optional[int] = None,
+        custom_output_path: Optional[str] = None
+    ) -> Tuple[CompiledStateGraph, List[BaseTool], List[Any]]:
+        """
+        Create a DeepAgent with middleware, subagents, and backends.
+
+        Args:
+            config: DeepAgent configuration
+            project_id: Project ID for context
+            task_id: Task ID for context
+            context: Additional context string
+            mcp_manager: MCP manager for tool loading
+            vector_store: Vector store for RAG
+            workflow_id: Workflow ID for file organization
+            custom_output_path: Custom output directory for file writes (overrides default)
+
+        Returns:
+            Tuple of (agent, tools, callbacks)
+        """
+        try:
+            from deepagents import create_deep_agent
+        except ImportError:
+            logger.error("deepagents library not installed. Falling back to regular agent.")
+            return await DeepAgentFactory._fallback_to_regular_agent(
+                config, project_id, task_id, context, mcp_manager, vector_store
+            )
+
+        # Validate configuration
+        config_errors = DeepAgentFactory._validate_deep_agent_config(config)
+        if config_errors:
+            logger.warning(f"DeepAgent config validation warnings: {', '.join(config_errors)}")
+
+        logger.info(
+            f"Creating DeepAgent for task {task_id} "
+            f"(model={config.model}, middleware={len(config.middleware)}, "
+            f"subagents={len(config.subagents)})"
+        )
+
+        # Setup observability callbacks (Langfuse, etc.)
+        callbacks = await DeepAgentFactory._setup_callbacks(project_id, task_id)
+        callback_handler = callbacks[0] if callbacks else None
+
+        # Load base tools from configuration (with custom_output_path for file writes)
+        base_tools = await DeepAgentFactory._load_base_tools(
+            config, mcp_manager, vector_store, project_id, task_id,
+            workflow_id=workflow_id,
+            custom_output_path=custom_output_path
+        )
+
+        # Create middleware-specific tools
+        middleware_tools = await DeepAgentsMiddlewareFactory.create_all_tools(
+            middleware_configs=[m.dict() for m in config.middleware],
+            mcp_manager=mcp_manager,
+            template_registry=None,
+            agent_factory=None
+        )
+
+        # Combine all available tools
+        all_tools = base_tools + middleware_tools
+        logger.info(f"Total tools: {len(all_tools)} (base={len(base_tools)}, middleware={len(middleware_tools)})")
+
+        code_interpreter_middleware = DeepAgentFactory._build_code_interpreter_middleware(
+            config,
+            all_tools,
+        )
+
+        # Prepare subagent configurations (with workspace context for file-writing tools)
+        subagents_config = await DeepAgentFactory._prepare_subagents(
+            config.subagents,
+            enable_compiled=getattr(config, 'enable_compiled_subagents', True),
+            project_id=project_id,
+            task_id=task_id,
+            workflow_id=workflow_id,
+            custom_output_path=custom_output_path,
+            mcp_manager=mcp_manager,
+            vector_store=vector_store
+        )
+
+        # Initialize middleware instances (custom/extra middleware only - the
+        # deepagents harness supplies TodoList/Filesystem/SubAgent/Summarization)
+        middleware_instances = []
+        if code_interpreter_middleware is not None:
+            middleware_instances.append(code_interpreter_middleware)
+
+        # Resolve filesystem workspace backend if enabled
+        filesystem_config = next(
+            (m for m in config.middleware if m.type == MiddlewareType.FILESYSTEM),
+            None
+        )
+        # DO NOT manually append TodoListMiddleware or FilesystemMiddleware here.
+        # deepagents 0.6.x adds both to every deep agent by default, and
+        # create_agent asserts middleware uniqueness - a manual instance raises
+        # "Please remove duplicate middleware instances", which silently kicked
+        # EVERY chat agent onto the checkpointer-less fallback path (no
+        # conversation memory). Filesystem customization goes through the
+        # supported `backend=` parameter instead (resolved below).
+        fs_backend = None
+        if filesystem_config and filesystem_config.enabled:
+            try:
+                try:
+                    from deepagents.memory.backends import FilesystemBackend
+                except ImportError:
+                    from deepagents.backends import FilesystemBackend
+                from services.workspace_manager import get_workspace_manager
+
+                # Get task workspace for file storage (with custom path override if configured)
+                workspace_mgr = get_workspace_manager()
+                workspace_path = workspace_mgr.get_task_workspace_with_override(
+                    project_id=project_id,
+                    workflow_id=workflow_id,
+                    task_id=task_id,
+                    custom_output_path=custom_output_path
+                )
+
+                # Use FilesystemBackend with task workspace as root (files persist to disk)
+                try:
+                    fs_backend = FilesystemBackend(root=str(workspace_path))
+                except TypeError:
+                    fs_backend = FilesystemBackend(root_dir=str(workspace_path))
+                logger.info(f"Filesystem backend resolved to workspace: {workspace_path}")
+            except ImportError as e:
+                logger.warning(f"FilesystemBackend not available: {e}")
+
+        todo_config = next(
+            (m for m in config.middleware if m.type == MiddlewareType.TODO_LIST),
+            None
+        )
+        if todo_config and todo_config.config:
+            logger.info(
+                "TodoListMiddleware is provided by the deepagents harness; "
+                "custom todo config is not forwarded (built-in defaults apply)"
+            )
+
+        # NOTE: SubAgentMiddleware is NOT manually created here.
+        # The deepagents library automatically creates SubAgentMiddleware (with the `task` tool)
+        # when `subagents=` is passed to create_deep_agent().
+        # Manually creating it causes conflicts and prevents the `task` tool from working.
+        # See: https://docs.langchain.com/oss/python/deepagents/subagents
+        if subagents_config:
+            logger.info(f"SubAgents configured ({len(subagents_config)}) - will be auto-initialized by create_deep_agent")
+
+        # Get PostgreSQL checkpointer for conversation persistence
+        from core.workflows.checkpointing.manager import get_checkpointer, get_store
+        checkpointer = get_checkpointer()
+
+        if checkpointer:
+            logger.info("Conversation persistence enabled")
+        else:
+            logger.warning("Checkpointer unavailable - conversations will not persist")
+
+        # Prepare guardrails configuration for memory management
+        guardrails_config = None
+        if config.guardrails:
+            guardrails_config = {
+                "token_limits": config.guardrails.token_limits,
+                "enable_auto_eviction": config.guardrails.enable_auto_eviction,
+                "enable_summarization": config.guardrails.enable_summarization,
+                "interrupts": config.guardrails.interrupts
+            }
+
+        # Resolve the model: for Claude models, construct the ChatAnthropic
+        # instance via AgentFactory._create_llm so provider features configured
+        # on the agent (adaptive thinking, effort, prompt caching) are honored.
+        # Other providers keep the string path (resolved by deepagents via
+        # init_chat_model with provider profiles).
+        model_for_agent: Any = config.model
+        if config.model.startswith("claude"):
+            llm_config: Dict[str, Any] = {
+                "streaming": True,
+                "thinking_display": config.thinking_display,
+                "enable_prompt_caching": config.enable_prompt_caching,
+            }
+            if config.enable_thinking is not None:
+                llm_config["enable_thinking"] = config.enable_thinking
+            # reasoning_effort defaults to LOW for the Gemini path; only
+            # forward it to Anthropic when it was explicitly configured.
+            if "reasoning_effort" in config.model_fields_set and config.reasoning_effort:
+                llm_config["reasoning_effort"] = config.reasoning_effort
+            try:
+                model_for_agent = await AgentFactory._create_llm(
+                    config.model, config.temperature, config.max_tokens, llm_config
+                )
+            except Exception as model_err:
+                logger.warning(
+                    f"Failed to construct configured Claude model instance "
+                    f"({model_err}); falling back to model string"
+                )
+                model_for_agent = config.model
+
+        # Anthropic server-side tools (web_search / web_fetch) - passed to
+        # create_deep_agent as raw dicts (forwarded to the API unchanged).
+        # Kept out of `all_tools` so the returned tool list stays BaseTool-only.
+        server_tool_dicts: List[Dict[str, Any]] = []
+        if config.model.startswith("claude") and config.anthropic_server_tools:
+            from core.agents.factory import resolve_anthropic_server_tools
+            server_tool_dicts, all_tools = resolve_anthropic_server_tools(
+                config.anthropic_server_tools, all_tools
+            )
+            if server_tool_dicts:
+                logger.info(
+                    f"Anthropic server tools enabled: "
+                    f"{[t['name'] for t in server_tool_dicts]}"
+                )
+
+        # Create DeepAgent with all components
+        try:
+            agent_label = f"deep_agent_task_{task_id}"
+            agent_kwargs = {
+                "model": model_for_agent,
+                "tools": all_tools + server_tool_dicts,
+                "system_prompt": config.system_prompt,
+                "middleware": middleware_instances if middleware_instances else None,
+                "subagents": subagents_config if subagents_config else None,
+                "checkpointer": checkpointer,
+                "name": getattr(config, 'agent_name', None) or agent_label,
+                "debug": getattr(config, 'debug', False),
+            }
+
+            # Custom filesystem root (task workspace) via the supported param;
+            # deepagents builds its own FilesystemMiddleware around it.
+            if fs_backend is not None:
+                agent_kwargs["backend"] = fs_backend
+
+            try:
+                store = get_store()
+                if store:
+                    agent_kwargs["store"] = store
+            except Exception:
+                pass
+
+            loaded_tool_names = {
+                tool.get("name") if isinstance(tool, dict) else getattr(tool, "name", None)
+                for tool in all_tools
+            }
+            configured_tool_names = set(getattr(config, "native_tools", []) or [])
+            interrupt_on = _with_mandatory_approval_interrupts(
+                getattr(config, "interrupt_on", {}),
+                loaded_tool_names | configured_tool_names,
+            )
+            if (
+                getattr(config, "interpreter", None)
+                and config.interpreter.enabled
+                and config.interpreter.require_eval_approval
+            ):
+                interrupt_on.setdefault("eval", True)
+            if interrupt_on:
+                agent_kwargs["interrupt_on"] = interrupt_on
+
+            if getattr(config, 'enable_cache', False):
+                try:
+                    from langgraph.cache.memory import InMemoryCache
+                    agent_kwargs["cache"] = InMemoryCache()
+                except ImportError:
+                    logger.debug("InMemoryCache not available")
+
+            # Debug logging for subagent configuration
+            if subagents_config:
+                logger.info(f"Subagent configuration being passed to create_deep_agent:")
+                for i, sub in enumerate(subagents_config):
+                    if isinstance(sub, dict):
+                        sub_tools = sub.get('tools', [])
+                        tool_names = [getattr(t, 'name', str(t)) for t in sub_tools] if sub_tools else []
+                        logger.info(f"  [{i}] {sub.get('name')}: {len(sub_tools)} tools ({tool_names})")
+                    else:
+                        logger.info(f"  [{i}] CompiledSubAgent: {getattr(sub, 'name', 'unknown')}")
+
+            # Try to pass guardrails if supported
+            try:
+                agent = create_deep_agent(**agent_kwargs, guardrails=guardrails_config)
+                logger.info("Guardrails configuration applied")
+            except TypeError as e:
+                if "guardrails" in str(e):
+                    logger.warning("Guardrails parameter not supported, creating without it")
+                    agent = create_deep_agent(**agent_kwargs)
+                else:
+                    raise
+
+            logger.info(f"DeepAgent created for task {task_id}")
+            logger.info(f"  Persistence: {'enabled' if checkpointer else 'disabled'}")
+            logger.info(f"  Token limits: {config.guardrails.token_limits}")
+            logger.info(f"  Auto-eviction: {config.guardrails.enable_auto_eviction}")
+            logger.info(f"  Summarization: {config.guardrails.enable_summarization}")
+
+            return agent, all_tools, callbacks
+
+        except Exception as e:
+            logger.error(f"Error creating DeepAgent: {e}", exc_info=True)
+            if getattr(getattr(config, "interpreter", None), "enabled", False):
+                raise
+            logger.critical(
+                "Falling back to regular AgentFactory - the fallback agent has "
+                "NO checkpointer, so chat sessions will have NO conversation "
+                "memory and HITL resume will not work. Fix the error above; do "
+                "not let this fallback become the steady state."
+            )
+            return await DeepAgentFactory._fallback_to_regular_agent(
+                config, project_id, task_id, context, mcp_manager, vector_store
+            )
+
+    @staticmethod
+    async def _load_base_tools(
+        config: DeepAgentConfig,
+        mcp_manager,
+        vector_store,
+        project_id: int,
+        task_id: int,
+        workflow_id: Optional[int] = None,
+        custom_output_path: Optional[str] = None
+    ) -> List[BaseTool]:
+        """Load base tools from configuration (native, CLI, and custom tools).
+
+        Args:
+            config: DeepAgent configuration
+            mcp_manager: MCP manager for tool loading
+            vector_store: Vector store for RAG
+            project_id: Project ID for context
+            task_id: Task ID for context
+            workflow_id: Workflow ID for file organization
+            custom_output_path: Custom output directory for file writes (overrides default)
+        """
+        tools = []
+
+        # DEBUG: Log incoming config
+        logger.info(f"[_load_base_tools] Config received:")
+        logger.info(f"  - config.native_tools: {config.native_tools}")
+        logger.info(f"  - config.cli_tools: {config.cli_tools}")
+        logger.info(f"  - config.custom_tools: {config.custom_tools}")
+        logger.info(f"  - custom_output_path: {custom_output_path}")
+
+        # Build workspace context for file-writing tools (enables custom_output_path)
+        workspace_context = {
+            "project_id": project_id,
+            "task_id": task_id,
+            "workflow_id": workflow_id,
+            "custom_output_path": custom_output_path,
+        }
+
+        # Load native tools (file operations, web search, etc.)
+        if config.native_tools:
+            try:
+                from core.agents.factory import AgentFactory
+                native_tools = await AgentFactory._load_native_tools(
+                    config.native_tools,
+                    workspace_context=workspace_context,
+                    allow_privileged=True,
+                )
+                tools.extend(native_tools)
+                logger.info(f"Loaded {len(native_tools)} native tools with workspace_context")
+            except Exception as e:
+                logger.error(f"Failed to load native tools: {e}")
+
+        # Load CLI tools (command-line integrations)
+        if config.cli_tools:
+            try:
+                cli_tools = await AgentFactory._load_cli_tools(config.cli_tools)
+                tools.extend(cli_tools)
+                logger.info(f"Loaded {len(cli_tools)} CLI tools")
+            except Exception as e:
+                logger.error(f"Failed to load CLI tools: {e}")
+
+        # Load custom tools (user-defined tools from database)
+        if config.custom_tools:
+            try:
+                logger.info(f"Custom tools requested: {config.custom_tools}")
+                custom_tools = await AgentFactory._load_custom_tools(config.custom_tools, project_id)
+                tools.extend(custom_tools)
+                logger.info(f"Loaded {len(custom_tools)} custom tools: {[t.name for t in custom_tools]}")
+            except Exception as e:
+                logger.error(f"Failed to load custom tools: {e}")
+                logger.exception("Custom tool loading stack trace:")
+
+        return tools
+
+    @staticmethod
+    async def _prepare_subagents(
+        subagent_configs: List[SubAgentConfig],
+        enable_compiled: bool = True,
+        project_id: int = None,
+        task_id: int = None,
+        workflow_id: int = None,
+        custom_output_path: Optional[str] = None,
+        mcp_manager=None,
+        vector_store=None
+    ) -> List[Any]:
+        """
+        Prepare subagent configurations for DeepAgents.
+
+        Supports both dictionary-based and CompiledSubAgent (workflow-based).
+
+        Args:
+            subagent_configs: List of subagent configurations
+            enable_compiled: Whether to enable CompiledSubAgent support
+            project_id: Project ID for workflow loading
+            task_id: Task ID for context
+            workflow_id: Workflow ID for file organization
+            custom_output_path: Custom output directory for file writes
+            mcp_manager: MCP manager instance
+            vector_store: Vector store instance
+
+        Returns:
+            List of subagent configurations (dicts or CompiledSubAgent objects)
+        """
+        from deepagents import CompiledSubAgent
+        from sqlalchemy.orm import Session
+        from db.database import get_db
+
+        subagents = []
+        visited_workflows = set()  # For circular dependency detection
+
+        # Build workspace context for file-writing tools in subagents
+        workspace_context = {
+            "project_id": project_id,
+            "task_id": task_id,
+            "workflow_id": workflow_id,
+            "custom_output_path": custom_output_path,
+        } if custom_output_path or workflow_id else None
+
+        for sub_config in subagent_configs:
+            # Dictionary-based subagent (simple)
+            if sub_config.type == SubAgentType.DICTIONARY:
+                # IMPORTANT: Load actual tool objects, not just tool names
+                # The deepagents library expects tools as BaseTool/Callable/dict objects,
+                # not string names. We need to resolve tool names to actual tools.
+                subagent_tools = []
+                if sub_config.tools:
+                    try:
+                        from core.agents.factory import AgentFactory
+                        # Load native tools by name (with workspace context for file writes)
+                        subagent_tools = await AgentFactory._load_native_tools(
+                            sub_config.tools,
+                            workspace_context=workspace_context,
+                            allow_privileged=True,
+                        )
+                        logger.info(f"Loaded {len(subagent_tools)} tools for subagent '{sub_config.name}': {sub_config.tools}")
+                    except Exception as e:
+                        logger.warning(f"Failed to load tools for subagent '{sub_config.name}': {e}")
+
+                subagent = {
+                    "name": sub_config.name,
+                    "description": sub_config.description,
+                    "system_prompt": sub_config.system_prompt or "",
+                    "tools": subagent_tools,  # Actual tool objects, not string names
+                }
+
+                if sub_config.model:
+                    subagent["model"] = sub_config.model
+
+                subagent_interrupts = _with_mandatory_approval_interrupts(
+                    sub_config.interrupt_on,
+                    set(sub_config.tools or []),
+                )
+                if subagent_interrupts:
+                    subagent["interrupt_on"] = subagent_interrupts
+
+                response_format = DeepAgentFactory._resolve_subagent_response_format(sub_config)
+                if response_format is not None:
+                    subagent["response_format"] = response_format
+
+                subagents.append(subagent)
+                logger.info(f"Dictionary subagent prepared: {sub_config.name} with {len(subagent_tools)} tools")
+
+            # Workflow-based CompiledSubAgent
+            elif sub_config.type == SubAgentType.COMPILED:
+                if not enable_compiled:
+                    logger.warning(
+                        f"CompiledSubAgent '{sub_config.name}' skipped - feature disabled. "
+                        f"Enable with enable_compiled_subagents=True"
+                    )
+                    continue
+
+                if not sub_config.workflow_id:
+                    logger.error(f"CompiledSubAgent '{sub_config.name}' missing workflow_id")
+                    continue
+
+                # Detect circular dependencies
+                if sub_config.workflow_id in visited_workflows:
+                    logger.error(
+                        f"Circular dependency detected: workflow {sub_config.workflow_id} "
+                        f"already in subagent chain"
+                    )
+                    continue
+
+                visited_workflows.add(sub_config.workflow_id)
+
+                try:
+                    # Load and compile the workflow
+                    compiled_workflow = await DeepAgentFactory._load_and_compile_workflow(
+                        workflow_id=sub_config.workflow_id,
+                        project_id=project_id,
+                        task_id=task_id,
+                        mcp_manager=mcp_manager,
+                        vector_store=vector_store,
+                        visited_workflows=visited_workflows
+                    )
+
+                    if compiled_workflow:
+                        compiled_subagent = CompiledSubAgent(
+                            name=sub_config.name,
+                            description=sub_config.description,
+                            runnable=compiled_workflow
+                        )
+                        subagents.append(compiled_subagent)
+                        logger.info(f"CompiledSubAgent prepared: {sub_config.name} (workflow {sub_config.workflow_id})")
+                    else:
+                        logger.error(f"Failed to compile workflow {sub_config.workflow_id} for subagent {sub_config.name}")
+
+                except Exception as e:
+                    logger.error(f"Error preparing CompiledSubAgent '{sub_config.name}': {e}", exc_info=True)
+                    continue
+
+            else:
+                logger.warning(f"Unknown subagent type: {sub_config.type} for {sub_config.name}")
+
+        logger.info(f"Prepared {len(subagents)} subagents total")
+        return subagents
+
+    @staticmethod
+    async def _load_and_compile_workflow(
+        workflow_id: int,
+        project_id: int,
+        task_id: int,
+        mcp_manager,
+        vector_store,
+        visited_workflows: set
+    ):
+        """
+        Load and compile a workflow to use as a CompiledSubAgent.
+
+        Args:
+            workflow_id: ID of the workflow to load
+            project_id: Project ID for context
+            task_id: Task ID for context
+            mcp_manager: MCP manager instance
+            vector_store: Vector store instance
+            visited_workflows: Set of already visited workflow IDs (for circular detection)
+
+        Returns:
+            Compiled LangGraph workflow ready to use as a subagent
+        """
+        from db.database import get_db
+        from models.workflow import WorkflowProfile
+        from core.workflows.executor import SimpleWorkflowExecutor
+
+        logger.info(f"Loading workflow {workflow_id} for CompiledSubAgent...")
+
+        # Acquire session BEFORE try block - guarantees finally can close it
+        db = next(get_db())
+        try:
+            # Load workflow from database
+            workflow = db.query(WorkflowProfile).filter(WorkflowProfile.id == workflow_id).first()
+
+            if not workflow:
+                logger.error(f"Workflow {workflow_id} not found in database")
+                return None
+
+            # Check for circular dependencies in workflow nodes
+            # If any node in this workflow has a subagent that references a workflow in visited_workflows,
+            # we have a circular dependency
+            workflow_data = workflow.workflow_data or {}
+            nodes = workflow_data.get('nodes', [])
+
+            for node in nodes:
+                node_config = node.get('data', {}).get('config', {})
+                node_subagents = node_config.get('subagents', [])
+
+                for subagent in node_subagents:
+                    if isinstance(subagent, dict) and subagent.get('type') == 'compiled':
+                        sub_workflow_id = subagent.get('workflow_id')
+                        if sub_workflow_id in visited_workflows:
+                            logger.error(
+                                f"Circular dependency detected in workflow {workflow_id}: "
+                                f"node references workflow {sub_workflow_id} which is already in the chain"
+                            )
+                            return None
+
+            # Create executor and build the graph
+            executor = SimpleWorkflowExecutor()
+            graph = await executor._build_graph_from_workflow(workflow)
+
+            # Compile the graph (without checkpointing for subagents - they use parent's checkpoint)
+            compiled_graph = graph.compile()
+
+            logger.info(f"Successfully compiled workflow {workflow_id} ({workflow.name}) for CompiledSubAgent")
+            return compiled_graph
+
+        except Exception as e:
+            logger.error(f"Error loading/compiling workflow {workflow_id}: {e}", exc_info=True)
+            return None
+        finally:
+            db.close()  # Always closes - no conditional check needed
+
+    @staticmethod
+    async def _setup_callbacks(project_id: int, task_id: int) -> List[Any]:
+        """Setup callbacks for logging and monitoring."""
+        callbacks = []
+
+        # Add Langfuse callback if available
+        try:
+            from langfuse.callback import CallbackHandler
+            callback = CallbackHandler(
+                tags=[f"project_{project_id}", f"task_{task_id}", "deepagent"]
+            )
+            callbacks.append(callback)
+            logger.info("Langfuse callback added")
+        except ImportError:
+            pass
+
+        return callbacks
+
+    @staticmethod
+    async def _fallback_to_regular_agent(
+        config: DeepAgentConfig,
+        project_id: int,
+        task_id: int,
+        context: str,
+        mcp_manager,
+        vector_store
+    ) -> Tuple[CompiledStateGraph, List[BaseTool], List[Any]]:
+        """
+        Fallback to regular AgentFactory if DeepAgents fails.
+
+        This ensures backward compatibility and graceful degradation.
+        """
+        logger.info("Using regular AgentFactory as fallback")
+
+        # Convert DeepAgentConfig to regular agent_config for fallback
+        agent_config = {
+            "model": config.model,
+            "temperature": config.temperature,
+            "max_tokens": config.max_tokens,
+            "system_prompt": config.system_prompt,
+            "native_tools": config.native_tools,
+            "cli_tools": config.cli_tools,
+            "custom_tools": config.custom_tools,
+            "enable_memory": False,
+            "enable_rag": False,
+            # Anthropic feature passthrough
+            "thinking_display": config.thinking_display,
+            "enable_prompt_caching": config.enable_prompt_caching,
+            "anthropic_server_tools": config.anthropic_server_tools,
+        }
+        if config.enable_thinking is not None:
+            agent_config["enable_thinking"] = config.enable_thinking
+        # reasoning_effort defaults to LOW for the Gemini path; only forward
+        # when explicitly configured so Claude models don't get effort="low".
+        if "reasoning_effort" in config.model_fields_set and config.reasoning_effort:
+            agent_config["reasoning_effort"] = config.reasoning_effort
+
+        # Use existing AgentFactory
+        return await AgentFactory.create_agent(
+            agent_config=agent_config,
+            project_id=project_id,
+            task_id=task_id,
+            context=context,
+            mcp_manager=mcp_manager,
+            vector_store=vector_store
+        )
+
+    @staticmethod
+    def create_default_config(
+        template_id: Optional[str] = None,
+        **overrides
+    ) -> DeepAgentConfig:
+        """
+        Create a default DeepAgent configuration.
+
+        Args:
+            template_id: Optional base template to extend
+            **overrides: Override specific config values
+
+        Returns:
+            DeepAgentConfig with defaults
+        """
+        from models.deep_agent import (
+            create_default_middleware_config,
+            create_default_backend_config,
+            create_default_guardrails_config
+        )
+
+        # Use DeepAgents standard filesystem tools + web_search for research
+        # See: https://docs.langchain.com/oss/python/deepagents/harness
+        from tools.native_tools import FILESYSTEM_TOOLS
+
+        # Default tools: filesystem + web_search for research capabilities
+        default_tools = FILESYSTEM_TOOLS + ["web_search"]
+
+        config = {
+            "model": "claude-sonnet-4-6",
+            "temperature": 0.7,
+            "system_prompt": "You are a helpful AI assistant with planning and research capabilities.",
+            "tools": [],
+            "native_tools": default_tools,  # Filesystem + web_search for research
+            "cli_tools": [],
+            "custom_tools": [],
+            "use_deepagents": True,
+            "middleware": create_default_middleware_config(),
+            "subagents": [],
+            "backend": create_default_backend_config(),
+            "guardrails": create_default_guardrails_config(),
+        }
+
+        # Apply template if specified
+        if template_id:
+            template_config = DeepAgentFactory._load_template_config(template_id)
+            config.update(template_config)
+
+        # Apply overrides
+        config.update(overrides)
+
+        return DeepAgentConfig(**config)
+
+    @staticmethod
+    def _load_template_config(template_id: str) -> Dict[str, Any]:
+        """Load configuration from a template."""
+        # This would integrate with AgentTemplateRegistry
+        # For now, return empty dict
+        logger.info(f"Loading template config for: {template_id}")
+        return {}
+
+
+# =============================================================================
+# Backend Abstraction Layer
+# =============================================================================
+
+class BackendAbstraction:
+    """
+    Pluggable backend system for DeepAgents memory and state management.
+    Supports multiple storage backends: State, Store, Filesystem, VectorDB, Composite.
+    """
+
+    def __init__(self, config: BackendConfig, project_id: int = None):
+        """
+        Initialize backend abstraction.
+
+        Args:
+            config: Backend configuration
+            project_id: Project ID for multi-tenant backends (e.g., VectorDB)
+        """
+        self.config = config
+        self.backend_type = config.type
+        self.project_id = project_id
+        self.backend = self._create_backend()
+
+        logger.info(f"BackendAbstraction initialized (type={self.backend_type})")
+
+    def _create_backend(self):
+        """Create the appropriate backend based on config."""
+        if self.backend_type == "state":
+            return StateBackend(self.config.config)
+        elif self.backend_type == "store":
+            return StoreBackend(self.config.config)
+        elif self.backend_type == "filesystem":
+            return FilesystemBackend(self.config.config)
+        elif self.backend_type == "vectordb":
+            return VectorDBBackend(self.config.config, project_id=self.project_id)
+        elif self.backend_type == "composite":
+            return CompositeBackend(self.config.config, self.config.mappings, project_id=self.project_id)
+        else:
+            raise ValueError(f"Unknown backend type: {self.backend_type}")
+
+    async def read(self, path: str) -> Any:
+        """Read data from backend."""
+        return await self.backend.read(path)
+
+    async def write(self, path: str, data: Any):
+        """Write data to backend."""
+        await self.backend.write(path, data)
+
+    async def list(self, path: str) -> List[str]:
+        """List items at path."""
+        return await self.backend.list(path)
+
+
+class StateBackend:
+    """Ephemeral backend using LangGraph State."""
+
+    def __init__(self, config: Dict[str, Any]):
+        self.config = config
+        self.state = {}
+
+    async def read(self, path: str) -> Any:
+        return self.state.get(path)
+
+    async def write(self, path: str, data: Any):
+        self.state[path] = data
+
+    async def list(self, path: str) -> List[str]:
+        prefix = path.rstrip("/") + "/"
+        return [k for k in self.state.keys() if k.startswith(prefix)]
+
+
+class StoreBackend:
+    """
+    Persistent backend using LangGraph Store for cross-session memory.
+
+    Uses InMemoryStore by default, with optional AsyncPostgresStore from checkpointing
+    if available. Provides lazy initialization to avoid import issues.
+    """
+
+    def __init__(self, config: Dict[str, Any]):
+        self.config = config
+        self.namespace = config.get("namespace", "deepagent")
+        self._store = None
+        self._initialized = False
+        logger.info(f"StoreBackend initialized (namespace={self.namespace})")
+
+    async def _ensure_store(self):
+        """Lazily initialize the store connection."""
+        if self._initialized:
+            return
+
+        # Try global store from checkpointing, fallback to InMemoryStore
+        try:
+            from core.workflows.checkpointing.manager import get_store, STORE_AVAILABLE
+            if STORE_AVAILABLE:
+                self._store = get_store()
+                if self._store:
+                    logger.info("StoreBackend: Using global AsyncPostgresStore")
+        except ImportError:
+            pass
+
+        if self._store is None:
+            logger.info("StoreBackend: Using InMemoryStore (fallback)")
+            try:
+                from langgraph.store.memory import InMemoryStore
+                self._store = InMemoryStore()
+            except ImportError:
+                logger.warning("StoreBackend: langgraph.store.memory not available")
+
+        self._initialized = True
+
+    def _build_namespace(self, path: str) -> tuple:
+        """Convert path to LangGraph Store namespace tuple."""
+        parts = [p for p in path.strip("/").split("/") if p]
+        if not parts:
+            return (self.namespace,)
+        return (self.namespace, *parts[:-1])
+
+    def _get_key(self, path: str) -> str:
+        """Extract key from path."""
+        parts = [p for p in path.strip("/").split("/") if p]
+        return parts[-1] if parts else "default"
+
+    async def read(self, path: str) -> Any:
+        """Read data from LangGraph Store."""
+        await self._ensure_store()
+
+        if not self._store:
+            logger.warning("StoreBackend: Store not available")
+            return None
+
+        namespace = self._build_namespace(path)
+        key = self._get_key(path)
+
+        try:
+            result = await self._store.aget(namespace, key)
+            if result is None:
+                logger.debug(f"StoreBackend: No data at {path}")
+                return None
+            # Result is a StoreItem with .value attribute
+            return result.value if hasattr(result, 'value') else result
+        except Exception as e:
+            logger.error(f"StoreBackend read error: {e}")
+            return None
+
+    async def write(self, path: str, data: Any):
+        """Write data to LangGraph Store."""
+        await self._ensure_store()
+
+        if not self._store:
+            logger.warning("StoreBackend: Store not available")
+            return
+
+        namespace = self._build_namespace(path)
+        key = self._get_key(path)
+
+        try:
+            await self._store.aput(namespace, key, {"value": data})
+            logger.debug(f"StoreBackend: Wrote data to {path}")
+        except Exception as e:
+            logger.error(f"StoreBackend write error: {e}")
+            raise
+
+    async def list(self, path: str) -> List[str]:
+        """List items at path in LangGraph Store."""
+        await self._ensure_store()
+
+        if not self._store:
+            return []
+
+        namespace = self._build_namespace(path)
+
+        try:
+            results = await self._store.asearch(namespace)
+            return [item.key for item in results]
+        except Exception as e:
+            logger.error(f"StoreBackend list error: {e}")
+            return []
+
+
+class FilesystemBackend:
+    """Backend using local filesystem."""
+
+    def __init__(self, config: Dict[str, Any]):
+        self.config = config
+        self.base_path = config.get("base_path", "/tmp/deepagent_storage")
+
+    async def read(self, path: str) -> Any:
+        import aiofiles
+        import os
+        full_path = os.path.join(self.base_path, path.lstrip("/"))
+        async with aiofiles.open(full_path, 'r') as f:
+            return await f.read()
+
+    async def write(self, path: str, data: Any):
+        import aiofiles
+        import os
+        full_path = os.path.join(self.base_path, path.lstrip("/"))
+        os.makedirs(os.path.dirname(full_path), exist_ok=True)
+        async with aiofiles.open(full_path, 'w') as f:
+            await f.write(str(data))
+
+    async def list(self, path: str) -> List[str]:
+        import os
+        full_path = os.path.join(self.base_path, path.lstrip("/"))
+        if os.path.exists(full_path):
+            return os.listdir(full_path)
+        return []
+
+
+class VectorDBBackend:
+    """
+    Backend using pgvector for semantic memory retrieval.
+
+    Integrates with existing LlamaIndex PGVectorStore infrastructure:
+    - Uses get_vector_store(project_id) for project-scoped tables
+    - Uses Settings.embed_model for embeddings
+    - Follows ContextRetriever patterns for search
+    - Multi-tenant via project-scoped tables: data_project_index_{project_id}
+    """
+
+    def __init__(self, config: Dict[str, Any], project_id: int = None):
+        self.config = config
+        self.project_id = project_id
+        self.namespace = config.get("namespace", "deepagent_memory")
+        self.min_similarity = config.get("min_similarity", 0.7)
+        self.top_k = config.get("top_k", 5)
+        self._vector_store = None
+        self._initialized = False
+        logger.info(f"VectorDBBackend initialized (project_id={project_id}, namespace={self.namespace})")
+
+    def set_project_id(self, project_id: int):
+        """Set project_id for multi-tenant vector store access."""
+        self.project_id = project_id
+        self._initialized = False  # Force re-initialization
+
+    async def _ensure_initialized(self):
+        """Lazily initialize pgvector connection."""
+        if self._initialized:
+            return
+
+        if not self.project_id:
+            logger.warning("VectorDBBackend: No project_id set, cannot access vector store")
+            return
+
+        try:
+            from services.llama_config import get_vector_store, ensure_initialized
+
+            # Initialize LlamaIndex settings (embeddings model)
+            ensure_initialized()
+
+            # Get project-scoped vector store (table: data_project_index_{project_id})
+            self._vector_store = get_vector_store(self.project_id)
+            self._initialized = True
+            logger.info(f"VectorDBBackend connected to pgvector (project={self.project_id})")
+
+        except Exception as e:
+            logger.error(f"VectorDBBackend initialization failed: {e}")
+            self._vector_store = None
+
+    async def read(self, path: str) -> Any:
+        """Read data via semantic search. Path is used as query."""
+        await self._ensure_initialized()
+
+        if not self._vector_store:
+            logger.warning("VectorDBBackend: Vector store not available")
+            return None
+
+        try:
+            from llama_index.core import VectorStoreIndex
+            from llama_index.core.retrievers import VectorIndexRetriever
+
+            # Create index and retriever
+            index = VectorStoreIndex.from_vector_store(self._vector_store)
+            retriever = VectorIndexRetriever(
+                index=index,
+                similarity_top_k=1
+            )
+
+            # Retrieve nodes
+            nodes = await retriever.aretrieve(path)
+
+            if nodes and nodes[0].score >= self.min_similarity:
+                node = nodes[0]
+                logger.debug(f"VectorDBBackend: Found node (score={node.score:.3f})")
+                return {
+                    "content": node.node.get_content(),
+                    "metadata": node.node.metadata,
+                    "score": node.score
+                }
+            return None
+
+        except Exception as e:
+            logger.error(f"VectorDBBackend read error: {e}")
+            return None
+
+    async def write(self, path: str, data: Any):
+        """Store data with semantic embedding in pgvector."""
+        await self._ensure_initialized()
+
+        if not self._vector_store:
+            logger.warning("VectorDBBackend: Vector store not available")
+            return
+
+        try:
+            from llama_index.core.schema import TextNode
+            from llama_index.core import Settings
+            import uuid
+            from datetime import datetime
+
+            # Prepare content and metadata
+            if isinstance(data, dict):
+                content = str(data.get("content", data))
+                extra_metadata = data.get("metadata", {})
+            else:
+                content = str(data)
+                extra_metadata = {}
+
+            # Generate embedding using Settings.embed_model
+            embedding = await Settings.embed_model.aget_text_embedding(content)
+
+            # Create TextNode with metadata
+            node = TextNode(
+                text=content,
+                id_=str(uuid.uuid4()),
+                embedding=embedding,
+                metadata={
+                    "namespace": self.namespace,
+                    "path": path,
+                    "project_id": self.project_id,
+                    "indexed_at": datetime.utcnow().isoformat(),
+                    **extra_metadata
+                }
+            )
+
+            # Add to pgvector store
+            self._vector_store.add([node])
+            logger.debug(f"VectorDBBackend: Stored node at path={path}")
+
+        except Exception as e:
+            logger.error(f"VectorDBBackend write error: {e}")
+            raise
+
+    async def list(self, path: str) -> List[str]:
+        """List documents matching a query prefix via semantic search."""
+        results = await self.search(path, k=20)
+        return [r.get("path", f"doc_{i}") for i, r in enumerate(results)]
+
+    async def search(
+        self,
+        query: str,
+        k: int = None,
+        min_similarity: float = None,
+        use_hyde: bool = False
+    ) -> List[Dict[str, Any]]:
+        """
+        Perform semantic search across stored memories.
+
+        Args:
+            query: Search query
+            k: Number of results (default: self.top_k)
+            min_similarity: Minimum similarity threshold
+            use_hyde: Use HyDE (Hypothetical Document Embeddings) for better retrieval
+        """
+        await self._ensure_initialized()
+
+        if not self._vector_store:
+            return []
+
+        k = k or self.top_k
+        threshold = min_similarity or self.min_similarity
+
+        try:
+            # Option: Use ContextRetriever for HyDE-augmented search
+            if use_hyde and self.project_id:
+                try:
+                    from services.context_retrieval import ContextRetriever
+
+                    retriever = ContextRetriever()
+                    result = await retriever.retrieve_context(
+                        project_id=self.project_id,
+                        task_description=query,
+                        similarity_top_k=k,
+                        use_hyde=True
+                    )
+
+                    return [
+                        {
+                            "content": chunk.get("text", ""),
+                            "path": chunk.get("metadata", {}).get("path"),
+                            "score": chunk.get("score", 0),
+                            "metadata": chunk.get("metadata", {})
+                        }
+                        for chunk in result.get("chunks", [])
+                        if chunk.get("score", 0) >= threshold
+                    ]
+                except ImportError:
+                    logger.warning("VectorDBBackend: ContextRetriever not available, using standard retrieval")
+
+            # Standard retrieval via VectorIndexRetriever
+            from llama_index.core import VectorStoreIndex
+            from llama_index.core.retrievers import VectorIndexRetriever
+
+            index = VectorStoreIndex.from_vector_store(self._vector_store)
+            retriever = VectorIndexRetriever(
+                index=index,
+                similarity_top_k=k
+            )
+
+            nodes = await retriever.aretrieve(query)
+
+            return [
+                {
+                    "content": node.node.get_content(),
+                    "path": node.node.metadata.get("path"),
+                    "score": node.score,
+                    "metadata": node.node.metadata
+                }
+                for node in nodes
+                if node.score >= threshold
+            ]
+
+        except Exception as e:
+            logger.error(f"VectorDBBackend search error: {e}")
+            return []
+
+
+class CompositeBackend:
+    """Backend that combines multiple backends with path mappings."""
+
+    def __init__(self, config: Dict[str, Any], mappings: Optional[Dict[str, Dict[str, Any]]], project_id: int = None):
+        self.config = config
+        self.mappings = mappings or {}
+        self.backends = {}
+        self.project_id = project_id
+
+        # Create backends for each mapping
+        for path_prefix, backend_config in self.mappings.items():
+            backend_type = backend_config["type"]
+            backend_cfg = backend_config.get("config", {})
+
+            if backend_type == "state":
+                self.backends[path_prefix] = StateBackend(backend_cfg)
+            elif backend_type == "store":
+                self.backends[path_prefix] = StoreBackend(backend_cfg)
+            elif backend_type == "filesystem":
+                self.backends[path_prefix] = FilesystemBackend(backend_cfg)
+            elif backend_type == "vectordb":
+                self.backends[path_prefix] = VectorDBBackend(backend_cfg, project_id=project_id)
+
+    def _find_backend(self, path: str):
+        """Find the appropriate backend for a path."""
+        for prefix, backend in self.backends.items():
+            if path.startswith(prefix):
+                return backend, path[len(prefix):]
+        # Default to first backend
+        return list(self.backends.values())[0] if self.backends else None, path
+
+    async def read(self, path: str) -> Any:
+        backend, relative_path = self._find_backend(path)
+        if backend:
+            return await backend.read(relative_path)
+        return None
+
+    async def write(self, path: str, data: Any):
+        backend, relative_path = self._find_backend(path)
+        if backend:
+            await backend.write(relative_path, data)
+
+    async def list(self, path: str) -> List[str]:
+        backend, relative_path = self._find_backend(path)
+        if backend:
+            return await backend.list(relative_path)
+        return []

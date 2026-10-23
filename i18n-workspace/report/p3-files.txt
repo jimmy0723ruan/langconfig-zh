@@ -1,0 +1,13 @@
+src/features/agents/ui/AgentLoadouts.tsx
+src/features/agents/ui/DeepAgentBuilder.tsx
+src/features/agents/ui/ModernAgentLibrary.tsx
+src/features/agents/ui/SkillBuilderModal.tsx
+src/features/agents/ui/ToolsModeView.tsx
+src/features/knowledge/ui/DocumentsView.tsx
+src/features/knowledge/ui/KnowledgeBaseView.tsx
+src/features/knowledge/ui/KnowledgeView.tsx
+src/features/knowledge/ui/SearchHistoryLog.tsx
+src/features/knowledge/ui/SearchMetricsDisplay.tsx
+src/features/knowledge/ui/repositories/RepoFilePreview.tsx
+src/features/knowledge/ui/repositories/RepoFileTree.tsx
+src/features/knowledge/ui/repositories/RepositoriesPanel.tsx

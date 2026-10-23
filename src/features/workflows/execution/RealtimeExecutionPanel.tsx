@@ -1,0 +1,1997 @@
+/**
+ * Copyright (c) 2025 Cade Russell
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+/**
+ * RealtimeExecutionPanel Component
+ *
+ * Sliding panel from left side that shows detailed real-time workflow execution.
+ * Displays agent thinking, tool calls, and diagnostics in a typewriter-style chat interface.
+ *
+ * Usage:
+ *   <RealtimeExecutionPanel
+ *     isVisible={!showThinkingStream && executionStatus.state === 'running'}
+ *     events={workflowEvents}
+ *     onClose={() => setShowThinkingStream(true)}
+ *   />
+ */
+
+import { useState, useEffect, useRef, useMemo } from 'react';
+import type { WorkflowEvent } from '@/types/events';
+// import { ErrorDiagnosis } from '../utils/workflowErrorDetector';
+import { Wrench, CheckCircle, XCircle, X, ChevronDown, Search, Activity, ArrowDown, History as HistoryIcon, Maximize2, Minimize2, DollarSign } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { CodeBlock } from '@/components/ui/CodeBlock';
+import { Badge } from '@/components/ui/Badge';
+import { ProgressBar } from '@/components/ui/ProgressBar';
+import { calculateAndFormatCost } from '@/utils/modelPricing';
+import { apiClient } from '@/lib/api-client';
+import { SubAgentPanelStack } from './SubagentPanel';
+import { ContentBlockRenderer } from '@/components/common/ContentBlockRenderer';
+import { AgentContextViewer } from './AgentContextViewer';
+import { ProgressCard, StatusBadge, FileOperationCard } from './CustomEventCards';
+import type { ProgressEvent, StatusEvent, FileStatusEvent } from '@/hooks/useCustomEvents';
+import type { ContentBlock } from '@/types/content-blocks';
+import { useTranslation } from 'react-i18next';
+
+// Helper component for collapsible tool calls - River Flow Style
+// File icon helper
+const getFileIcon = (filename: string): string => {
+  const ext = filename.split('.').pop()?.toLowerCase() || '';
+  const icons: Record<string, string> = {
+    'md': '📝', 'txt': '📄', 'py': '🐍', 'js': '💛', 'ts': '💙', 'tsx': '⚛️', 'jsx': '⚛️',
+    'json': '📋', 'html': '🌐', 'css': '🎨', 'sql': '🗃️', 'yaml': '⚙️', 'yml': '⚙️',
+    'xml': '📰', 'sh': '💻', 'bash': '💻', 'csv': '📊', 'pdf': '📕', 'png': '🖼️',
+    'jpg': '🖼️', 'jpeg': '🖼️', 'gif': '🖼️', 'svg': '🎨'
+  };
+  return icons[ext] || '📄';
+};
+
+// File card component for write_file results
+const FileCreatedCard = ({ filename, result }: { filename: string; result: string }) => {
+  // Extract file size info from result if available
+  const sizeMatch = result.match(/(\d+)\s*characters/i);
+  const charCount = sizeMatch ? sizeMatch[1] : null;
+
+  return (
+    <div
+      className="flex items-center gap-3 p-3 mt-2"
+      style={{
+        backgroundColor: 'color-mix(in srgb, var(--color-success) 10%, var(--surface-1))',
+        border: '1px solid var(--color-success-border)',
+        borderRadius: 'var(--radius-control)'
+      }}
+    >
+      <div className="text-2xl">{getFileIcon(filename)}</div>
+      <div className="flex-1 min-w-0">
+        <div className="font-medium text-sm truncate" style={{ color: 'var(--color-text-primary)' }}>
+          {filename}
+        </div>
+        <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+          {charCount ? `${parseInt(charCount).toLocaleString()} characters written` : 'File created successfully'}
+        </div>
+      </div>
+      <CheckCircle className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--color-success)' }} />
+    </div>
+  );
+};
+
+const ToolCallItem = ({
+  status,
+  toolName,
+  renderedHeader,
+  renderedInput,
+  renderedResult,
+  rawInput,
+  contentBlocks,
+  artifacts,
+  hasMultimodal,
+  progressMessage,
+  progressPercent,
+  progressStep,
+  progressTotal,
+}: {
+  status: 'running' | 'completed' | 'error';
+  toolName: string;
+  renderedHeader: string;
+  renderedInput: string;
+  renderedResult: string;
+  /** Full untruncated tool input for fullscreen image modal */
+  rawInput?: string;
+  /** Multimodal content blocks from MCP tools */
+  contentBlocks?: ContentBlock[];
+  /** Artifacts for UI display only */
+  artifacts?: ContentBlock[];
+  /** Whether the result contains multimodal content */
+  hasMultimodal?: boolean;
+  /** Progress message from tool_progress events */
+  progressMessage?: string;
+  /** Progress percentage (0-100) */
+  progressPercent?: number;
+  /** Current step number */
+  progressStep?: number;
+  /** Total number of steps */
+  progressTotal?: number;
+}) => {
+  const { t } = useTranslation();
+  const [isOpen, setIsOpen] = useState(true);
+
+  // Auto-open if completed or error to show result
+  useEffect(() => {
+    if (status === 'completed' || status === 'error') {
+      setIsOpen(true);
+    }
+  }, [status]);
+
+  return (
+    <div
+      className="group overflow-hidden transition-all duration-200 mb-2"
+      style={{
+        borderRadius: 'var(--radius-card)',
+        border: `1px solid ${status === 'error' ? 'var(--color-error-border)' : status === 'completed' ? 'var(--color-success-border)' : 'var(--color-warning-border)'}`,
+        background: status === 'error'
+          ? 'color-mix(in srgb, var(--color-error) 10%, var(--surface-1))'
+          : status === 'completed'
+            ? 'color-mix(in srgb, var(--color-success) 10%, var(--surface-1))'
+            : 'color-mix(in srgb, var(--color-warning) 10%, var(--surface-1))',
+        boxShadow: status === 'running' ? 'var(--glow-warning)' : undefined
+      }}
+    >
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center gap-2 p-2 hover:bg-[var(--color-accent-wash)] transition-all duration-200 text-left"
+      >
+        <div className="flex-shrink-0 p-1 rounded" style={{
+          backgroundColor: status === 'error' ? 'var(--color-error-wash)' : status === 'completed' ? 'var(--color-success-wash)' : 'var(--color-warning-wash)'
+        }}>
+          {status === 'running' && <Wrench className="w-3 h-3 animate-spin" style={{ color: 'var(--color-warning)' }} />}
+          {status === 'completed' && <CheckCircle className="w-3 h-3" style={{ color: 'var(--color-success)' }} />}
+          {status === 'error' && <XCircle className="w-3 h-3" style={{ color: 'var(--color-error)' }} />}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className="font-mono text-xs uppercase tracking-wider truncate" style={{ color: 'var(--color-text-primary)' }}>
+              {t('TOOL ▸ {{name}}', { name: renderedHeader })}
+            </span>
+            <Badge
+              tone={status === 'running' ? 'warning' : status === 'completed' ? 'success' : 'error'}
+              dot
+              pulse={status === 'running'}
+            >
+              {status === 'running' ? 'Running' : status === 'completed' ? t('Done') : t('Failed')}
+            </Badge>
+          </div>
+        </div>
+        <ChevronDown
+          className={`w-3 h-3 transition-transform duration-200 opacity-50 group-hover:opacity-100 ${isOpen ? 'rotate-180' : ''}`}
+          style={{ color: 'var(--color-text-muted)' }}
+        />
+      </button>
+
+      {isOpen && (
+        <div className="px-2 pb-2 space-y-2 animate-in slide-in-from-top-1 duration-200 border-t pt-2" style={{ borderColor: 'var(--border-subtle)' }}>
+          {/* Progress indicator for long-running tools */}
+          {status === 'running' && (progressMessage || progressPercent !== undefined) && (
+            <div className="text-xs rounded-md p-2" style={{ background: 'var(--color-warning-wash)', border: '1px solid var(--color-warning-border)' }}>
+              <div className="flex items-center gap-2" style={{ color: 'var(--color-warning)' }}>
+                <div className="flex-1 min-w-0">
+                  {progressMessage && (
+                    <div className="text-xs truncate">{progressMessage}</div>
+                  )}
+                  {(progressPercent !== undefined || (progressStep !== undefined && progressTotal !== undefined)) && (
+                    <div className="mt-1">
+                      <ProgressBar
+                        value={progressPercent ?? ((progressStep ?? 0) / (progressTotal ?? 1) * 100)}
+                        tone="warning"
+                        animated
+                        height={6}
+                      />
+                      {progressStep !== undefined && progressTotal !== undefined && (
+                        <div className="text-[10px] mt-0.5 text-right" style={{ color: 'var(--color-warning)' }}>
+                          {t('Step {{step}} of {{total}}', { step: progressStep, total: progressTotal })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {progressPercent !== undefined && (
+                  <span className="text-xs font-mono shrink-0">{progressPercent}%</span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {renderedInput && (
+            <div className="text-xs">
+              <div className="font-mono uppercase tracking-wider mb-0.5 text-xs" style={{ color: 'var(--color-text-primary)' }}>{t('Input')}</div>
+              <div className="relative">
+                <pre
+                  className="surface-inset p-2 overflow-x-auto custom-scrollbar text-xs"
+                  style={{
+                    fontFamily: 'var(--font-family-mono)',
+                    color: 'var(--color-text-primary)'
+                  }}
+                >
+                  {renderedInput}
+                </pre>
+              </div>
+            </div>
+          )}
+
+          {(renderedResult || hasMultimodal) && (
+            <div className="text-xs">
+              <div className="flex items-center gap-1 mb-0.5">
+                <ArrowDown className="w-3 h-3 opacity-30" />
+                <span className="font-mono uppercase tracking-wider text-xs" style={{ color: 'var(--color-text-primary)' }}>{t('Result')}</span>
+                {hasMultimodal && (
+                  <Badge tone="info" className="ml-1">{t('Multimodal')}</Badge>
+                )}
+              </div>
+
+              {/* Render multimodal content blocks first (images, audio, etc.) */}
+              {hasMultimodal && contentBlocks && contentBlocks.length > 0 && (
+                <div className="my-2">
+                  <ContentBlockRenderer blocks={contentBlocks} toolInput={rawInput} />
+                </div>
+              )}
+
+              {/* Render artifacts (UI-only content) */}
+              {artifacts && artifacts.length > 0 && (
+                <div className="my-2 pt-2 border-t" style={{ borderColor: 'var(--border-subtle)' }}>
+                  <p className="text-xs mb-1 font-medium" style={{ color: 'var(--color-text-muted)' }}>{t('Generated Content:')}</p>
+                  <ContentBlockRenderer blocks={artifacts} />
+                </div>
+              )}
+
+              {/* Show file card for write_file completions */}
+              {!hasMultimodal && status === 'completed' && ['write_file', 'edit_file', 'file_write', 'create_file'].includes(toolName.toLowerCase()) ? (
+                (() => {
+                  // Extract filename from input
+                  try {
+                    const inputJson = JSON.parse(renderedInput);
+                    const filename = inputJson.file_path || inputJson.path || inputJson.filename || 'file';
+                    // Get just the filename without path
+                    const displayName = filename.split('/').pop()?.split('\\').pop() || filename;
+                    return <FileCreatedCard filename={displayName} result={renderedResult} />;
+                  } catch {
+                    return <FileCreatedCard filename="file" result={renderedResult} />;
+                  }
+                })()
+              ) : renderedResult && !hasMultimodal ? (
+                <div className="relative">
+                  <pre
+                    className="p-2 overflow-x-auto custom-scrollbar text-xs"
+                    style={{
+                      backgroundColor: status === 'error' ? 'var(--color-error-wash)' : 'var(--color-success-wash)',
+                      color: 'var(--color-text-primary)',
+                      fontFamily: 'var(--font-family-mono)',
+                      border: '1px solid',
+                      borderColor: status === 'error' ? 'var(--color-error-border)' : 'var(--color-success-border)',
+                      borderRadius: 'var(--radius-control)',
+                      maxHeight: '300px'
+                    }}
+                  >
+                    {renderedResult}
+                  </pre>
+                </div>
+              ) : null}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export interface RealtimeExecutionPanelProps {
+  /** Whether the panel should be visible */
+  isVisible: boolean;
+
+  /** All workflow events to display */
+  events: WorkflowEvent[];
+
+  /** Latest event (for live updates) */
+  latestEvent?: WorkflowEvent | null;
+
+  /** Callback when panel is closed */
+  onClose?: () => void;
+
+  /** Whether this is replay mode (historical events) */
+  isReplay?: boolean;
+
+  /** Execution status */
+  executionStatus?: {
+    state: 'idle' | 'running' | 'completed' | 'failed';
+    currentNode?: string;
+  };
+
+  /** Live workflow metrics computed from events */
+  workflowMetrics?: {
+    totalEvents: number;
+    chainEnds: number;
+    toolCalls: number;
+    agentActions: number;
+    llmCalls: number;
+    totalTokens: number;
+    errors: number;
+    duration: string;
+  };
+
+  /** User's original prompt/query */
+  userPrompt?: string | null;
+
+  /** Name of the workflow being executed */
+  workflowName?: string;
+
+  /** Active task ID for direct cancellation and follow-up continuation */
+  currentTaskId?: number | null;
+
+  /** Callback to continue conversation from a completed task */
+  onContinueFromTask?: (taskId: number) => void;
+}
+
+interface SectionItem {
+  type: 'thinking' | 'tool_call' | 'output' | 'custom_event';
+  // Clean text used for normal display while streaming
+  content?: string;
+  // Raw text (includes internal blocks) used in Diagnostics mode
+  rawContent?: string;
+  finalized?: boolean; // when true, safe to render as Markdown with highlighting
+  tool?: {
+    toolName: string;
+    input: string;
+    rawInput?: string; // Full untruncated input for display in fullscreen modal
+    result?: string;
+    status: 'running' | 'completed' | 'error';
+    runId?: string; // LangChain run_id for unique tool call matching
+    // Multimodal content support from MCP tools
+    contentBlocks?: ContentBlock[];
+    artifacts?: ContentBlock[];
+    hasMultimodal?: boolean;
+    // Progress tracking for long-running tools
+    progressMessage?: string;
+    progressPercent?: number;
+    progressStep?: number;
+    progressTotal?: number;
+  };
+  // LangGraph-style custom event data
+  customEvent?: {
+    eventType: 'progress' | 'status' | 'file_status';
+    eventId?: string;
+    data: ProgressEvent | StatusEvent | FileStatusEvent;
+  };
+  id: string;
+}
+
+interface AgentSection {
+  agentLabel: string;
+  nodeId: string;
+  items: SectionItem[];
+  startTime: string;
+  endTime?: string;
+  context?: {
+    agent_label: string;
+    node_id: string;
+    timestamp: string;
+    system_prompt: {
+      preview: string;
+      length: number;
+    };
+    tools: string[];
+    attachments: Array<{
+      name: string;
+      mimeType: string;
+      hasData: boolean;
+      dataSize?: number;
+    }>;
+    messages: Array<{
+      type: string;
+      content: any;
+    }>;
+    model_config: {
+      model: string;
+      temperature: number;
+      max_tokens?: number;
+      enable_memory?: boolean;
+      enable_rag?: boolean;
+    };
+    metadata?: Record<string, any>;
+  };
+}
+
+// Lightweight token sanitizer for normal (non-diagnostics) view
+// Only strips well-known hidden tags - be conservative to avoid cutting off content
+const stripHiddenTagsFromToken = (t: string): string => {
+  // Strip XML thinking/function tags (original behavior)
+  return t.replace(/<\/?(?:think|function_results|function_calls|tool_response|system)[^>]*>?/g, '');
+};
+
+// Smart truncation for tool inputs - especially for file write operations with large content
+const formatToolInput = (toolName: string, input: string | Record<string, any>): string => {
+  const MAX_CONTENT_LENGTH = 500; // Max chars to show for file content
+  const MAX_TOTAL_LENGTH = 1000; // Max total input length
+
+  // Parse input if it's a string that looks like JSON
+  let parsed = input;
+  if (typeof input === 'string') {
+    try {
+      parsed = JSON.parse(input);
+    } catch {
+      // Not JSON, keep as string
+      if (input.length > MAX_TOTAL_LENGTH) {
+        return input.slice(0, MAX_TOTAL_LENGTH) + `\n... (${input.length - MAX_TOTAL_LENGTH} more characters)`;
+      }
+      return input;
+    }
+  }
+
+  // Handle file write tools specially - truncate content field
+  if (typeof parsed === 'object' && parsed !== null) {
+    const fileWriteTools = ['write_file', 'edit_file', 'file_write', 'create_file'];
+    if (fileWriteTools.includes(toolName.toLowerCase())) {
+      const truncated = { ...parsed };
+      if (truncated.content && typeof truncated.content === 'string' && truncated.content.length > MAX_CONTENT_LENGTH) {
+        const lines = truncated.content.split('\n');
+        const lineCount = lines.length;
+        const preview = lines.slice(0, 10).join('\n');
+        truncated.content = `${preview}\n... (${lineCount} total lines, ${truncated.content.length} characters)`;
+      }
+      return JSON.stringify(truncated, null, 2);
+    }
+
+    // For other tools, just truncate if too long
+    const str = JSON.stringify(parsed, null, 2);
+    if (str.length > MAX_TOTAL_LENGTH) {
+      return str.slice(0, MAX_TOTAL_LENGTH) + `\n... (truncated)`;
+    }
+    return str;
+  }
+
+  return String(input);
+};
+
+interface MemorySnapshot {
+  timestamp: string;
+  eventCount: number;
+  estimatedBytes: number;
+  agentCount: number;
+}
+
+const useMemoryProfiler = (events: WorkflowEvent[]) => {
+  const [snapshots, setSnapshots] = useState<MemorySnapshot[]>([]);
+
+  useEffect(() => {
+    const estimateSize = (obj: any): number => {
+      return JSON.stringify(obj).length; // Rough estimate
+    };
+
+    const totalBytes = events.reduce((sum, event) => sum + estimateSize(event), 0);
+    const agentCount = new Set(events.map(e => e.data?.agent_label)).size;
+
+    const snapshot: MemorySnapshot = {
+      timestamp: new Date().toISOString(),
+      eventCount: events.length,
+      estimatedBytes: totalBytes,
+      agentCount
+    };
+
+    setSnapshots(prev => {
+      const recent = prev.slice(-100); // Keep last 100 snapshots
+      return [...recent, snapshot];
+    });
+  }, [events.length]);
+
+  return {
+    snapshots,
+    currentMemoryMB: (snapshots[snapshots.length - 1]?.estimatedBytes || 0) / (1024 * 1024),
+    maxMemoryMB: Math.max(...snapshots.map(s => s.estimatedBytes / (1024 * 1024)), 0),
+    memoryTrend: snapshots.length > 1
+      ? snapshots[snapshots.length - 1].estimatedBytes > snapshots[snapshots.length - 2].estimatedBytes
+        ? 'increasing'
+        : 'stable'
+      : 'unknown'
+  };
+};
+
+export default function RealtimeExecutionPanel({
+  isVisible,
+  events,
+  latestEvent,
+  onClose,
+  isReplay = false,
+  executionStatus,
+  workflowMetrics,
+  userPrompt,
+  workflowName,
+  currentTaskId,
+  onContinueFromTask,
+}: RealtimeExecutionPanelProps) {
+  const { t } = useTranslation();
+  // Removed visibleCharCount state - we now always show all content immediately
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [currentTipIndex, setCurrentTipIndex] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState<'all' | 'tool_call' | 'thinking' | 'output'>('all');
+  const [isFullScreen, setIsFullScreen] = useState(false); // New Full Screen State
+  const [dismissedErrors, setDismissedErrors] = useState<Set<string>>(new Set()); // Track dismissed error IDs
+
+  // Extract workflow errors from events for prominent display
+  const workflowErrors = useMemo(() => {
+    const errorEvents = events.filter(e => e.type === 'error');
+    return errorEvents.map(e => ({
+      id: e.idempotency_key || `error-${e.timestamp}`,
+      message: (e.data as any)?.error || (e.data as any)?.message || 'Unknown error occurred',
+      errorType: (e.data as any)?.error_type || 'Error',
+      timestamp: e.timestamp,
+      workflowId: (e.data as any)?.workflow_id,
+      taskId: (e.data as any)?.task_id
+    })).filter(e => !dismissedErrors.has(e.id));
+  }, [events, dismissedErrors]);
+
+  // Check if workflow completed with error status
+  const workflowFailed = useMemo(() => {
+    const completeEvent = events.find(e => e.type === 'complete');
+    return completeEvent?.data?.status === 'error';
+  }, [events]);
+
+  // Track active subagents from subagent_start/end events
+  const activeSubagents = useMemo(() => {
+    const subagentMap = new Map<string, {
+      id: string;
+      label: string;
+      parentRunId: string;
+      events: WorkflowEvent[];
+      status: 'running' | 'completed' | 'error';
+      inputPreview: string;
+      outputPreview: string;
+      isDynamic?: boolean;
+      evalId?: string;
+      phase?: string;
+      durationMs?: number;
+      subagentType?: string;
+      error?: string;
+    }>();
+
+    for (const event of events) {
+      // DEBUG: Log all subagent-related events
+      if (event.type === 'subagent_start' || event.type === 'subagent_end' || event.type === 'subagent_error') {
+        console.log('[SUBAGENT EVENT]', event.type, event.data);
+      }
+
+      if (event.type === 'subagent_start') {
+        const {
+          subagent_name,
+          subagent_run_id,
+          parent_run_id,
+          input_preview,
+          is_dynamic,
+          eval_id,
+          phase,
+          duration_ms,
+          subagent_type
+        } = event.data as any;
+        console.log('[SUBAGENT PANEL] Creating panel for:', subagent_name, 'run_id:', subagent_run_id);
+        subagentMap.set(subagent_run_id, {
+          id: subagent_run_id,
+          label: subagent_name || 'Subagent',
+          parentRunId: parent_run_id || '',
+          events: [],
+          status: 'running',
+          inputPreview: input_preview || '',
+          outputPreview: '',
+          isDynamic: Boolean(is_dynamic),
+          evalId: eval_id,
+          phase,
+          durationMs: duration_ms,
+          subagentType: subagent_type
+        });
+      } else if (event.type === 'subagent_end') {
+        const {
+          subagent_name,
+          subagent_run_id,
+          success,
+          output_preview,
+          full_output,
+          duration_ms,
+          phase,
+          is_dynamic,
+          eval_id,
+          subagent_type
+        } = event.data as any;
+        const subagent = subagentMap.get(subagent_run_id) || {
+          id: subagent_run_id,
+          label: subagent_name || 'Subagent',
+          parentRunId: (event.data as any)?.parent_run_id || '',
+          events: [],
+          status: 'running' as const,
+          inputPreview: '',
+          outputPreview: '',
+          isDynamic: Boolean(is_dynamic),
+          evalId: eval_id,
+          phase,
+          durationMs: duration_ms,
+          subagentType: subagent_type,
+          error: undefined
+        };
+        if (subagent) {
+          subagent.status = success ? 'completed' : 'error';
+          // Use full_output for complete result, fallback to output_preview
+          subagent.outputPreview = full_output || output_preview || '';
+          subagent.phase = phase || subagent.phase;
+          subagent.durationMs = duration_ms ?? subagent.durationMs;
+          subagent.isDynamic = subagent.isDynamic || Boolean(is_dynamic);
+          subagent.evalId = eval_id || subagent.evalId;
+          subagent.subagentType = subagent_type || subagent.subagentType;
+          subagentMap.set(subagent_run_id, subagent);
+        }
+      } else if (event.type === 'subagent_error') {
+        const {
+          subagent_name,
+          subagent_run_id,
+          error,
+          duration_ms,
+          phase,
+          is_dynamic,
+          eval_id,
+          subagent_type
+        } = event.data as any;
+        const subagent = subagentMap.get(subagent_run_id) || {
+          id: subagent_run_id,
+          label: subagent_name || 'Subagent',
+          parentRunId: (event.data as any)?.parent_run_id || '',
+          events: [],
+          status: 'running' as const,
+          inputPreview: '',
+          outputPreview: '',
+          isDynamic: Boolean(is_dynamic),
+          evalId: eval_id,
+          phase,
+          durationMs: duration_ms,
+          subagentType: subagent_type,
+          error: undefined
+        };
+        subagent.status = 'error';
+        subagent.outputPreview = error || '';
+        subagent.error = error;
+        subagent.phase = phase || subagent.phase;
+        subagent.durationMs = duration_ms ?? subagent.durationMs;
+        subagent.isDynamic = subagent.isDynamic || Boolean(is_dynamic);
+        subagent.evalId = eval_id || subagent.evalId;
+        subagent.subagentType = subagent_type || subagent.subagentType;
+        subagentMap.set(subagent_run_id, subagent);
+      }
+      // SUBAGENT EVENT ROUTING: Route events using subagent_run_id or subgraph_run_id
+      // Primary: subagent_run_id (from callback handler's task tool detection)
+      // Secondary: subgraph_run_id (from LangGraph subgraph streaming with include_subgraphs=True)
+      else {
+        const eventData = event.data as any;
+        const routingId = eventData?.subagent_run_id || eventData?.subgraph_run_id;
+
+        if (routingId && subagentMap.has(routingId)) {
+          // This event belongs to a subagent - add to its events array
+          subagentMap.get(routingId)!.events.push(event);
+          console.log('[SUBAGENT EVENT ROUTED]', event.type, 'to', routingId);
+        }
+        // Fallback: Route events by parent_run_id matching (legacy behavior)
+        else if (eventData?.parent_run_id) {
+          const parentId = eventData.parent_run_id;
+          for (const [subId, sub] of subagentMap) {
+            if (sub.parentRunId === parentId || subId === parentId) {
+              sub.events.push(event);
+              console.log('[SUBAGENT EVENT ROUTED via parent]', event.type, 'to', subId);
+            }
+          }
+        } else if (eventData?.eval_id) {
+          for (const [subId, sub] of subagentMap) {
+            if (sub.evalId === eventData.eval_id) {
+              sub.events.push(event);
+              console.log('[SUBAGENT EVENT ROUTED via eval]', event.type, 'to', subId);
+            }
+          }
+        }
+      }
+    }
+
+    console.log('[SUBAGENT SUMMARY]', subagentMap.size, 'subagents,',
+      Array.from(subagentMap.values()).map(s => `${s.label}: ${s.events.length} events`).join(', '));
+
+    return Array.from(subagentMap.values());
+  }, [events]);
+
+  // Knowledge tips that rotate when panel is idle
+  const knowledgeTips = [
+    { title: 'Agent Templates', tip: 'LangConfig includes 15 pre-configured agent templates built with LangChain tools. Each specializes in specific tasks like coding, research, testing, or documentation.' },
+    { title: 'Workflow Connections', tip: 'Connect agents to create sophisticated pipelines. Information flows through LangGraph\'s state management, allowing agents to collaborate on complex tasks.' },
+    { title: 'Knowledge Base RAG', tip: 'Upload PDFs, DOCX files, or code to the Knowledge Base. Agents use LangChain retrievers to search your documents with semantic embeddings during execution.' },
+    { title: 'Native Tools', tip: 'Built-in native tools extend agent capabilities: filesystem operations, git integration, github access, web search, sequential thinking, time utilities, memory management, and browser automation.' },
+    { title: 'Export Workflows', tip: 'Export workflows as .langconfig files to share with your team, or generate production-ready LangGraph Python code to deploy in your apps.' },
+    { title: 'Multi-Model Support', tip: 'Use OpenAI, Anthropic, Google, or local models. Each agent can use a different model, and automatic fallbacks can reduce costs by 40-60%.' },
+    { title: 'Real-time Streaming', tip: 'Watch agents think in real-time. The panel displays agent reasoning, tool calls, and outputs as they happen with zero artificial delay.' },
+    { title: 'Visual LangGraph', tip: 'Every workflow is a LangGraph state graph. The visual canvas helps you understand agent orchestration patterns before writing code.' },
+    { title: 'Local-First Storage', tip: 'Projects and run history stay in your local PostgreSQL database. Configured model providers, Codex, browser tools, and integrations may send task context to their external services.' }
+  ];
+
+  // Track last processed event index for incremental processing
+  const lastProcessedIndexRef = useRef(0);
+  const sectionsRef = useRef<Map<string, AgentSection>>(new Map());
+  const MAX_VISIBLE_EVENTS = 500; // Circular buffer size
+
+  // Memory profiling
+  const memoryProfile = useMemoryProfiler(events);
+
+  // Reset state when events array is cleared (new workflow)
+  useEffect(() => {
+    if (events.length === 0) {
+      lastProcessedIndexRef.current = 0;
+      sectionsRef.current.clear();
+    } else if (events.length < lastProcessedIndexRef.current) {
+      // Events array was replaced with fewer events (e.g., historical load)
+      lastProcessedIndexRef.current = 0;
+      sectionsRef.current.clear();
+    }
+  }, [events.length]);
+
+  // Parse events into agent sections (INCREMENTAL - only process new events)
+  const agentSections = useMemo(() => {
+    const sections = sectionsRef.current;
+
+    // Only process events we haven't seen yet
+    const startIndex = lastProcessedIndexRef.current;
+    const newEvents = events.slice(startIndex);
+
+    // Circular buffer logic: Trim old sections if we have too many events
+    if (events.length > MAX_VISIBLE_EVENTS) {
+      // Logic to trim old sections if needed, but for now we rely on maxEvents in useWorkflowStream
+      // to keep the events array size manageable. The sections map will grow but it's less memory intensive than the raw events.
+      // If we really need to trim sections, we can do it here.
+      if (sections.size > 50) {
+        const keys = Array.from(sections.keys());
+        for (let i = 0; i < keys.length - 20; i++) {
+          sections.delete(keys[i]);
+        }
+      }
+    }
+
+    if (newEvents.length === 0) {
+      return Array.from(sections.values());
+    }
+
+    for (const event of newEvents) {
+      // Skip events without proper agent identification
+      const agentLabel = event.data?.agent_label;
+      const nodeId = event.data?.node_id;
+
+      if (!agentLabel && !nodeId) {
+        // Debug warning - always log for tool events since they should always have context
+        if (event.type === 'on_tool_start' || event.type === 'on_tool_end') {
+          console.warn(
+            `[RealtimeExecutionPanel] TOOL EVENT MISSING AGENT CONTEXT - this is a bug:`,
+            {
+              type: event.type,
+              timestamp: event.timestamp,
+              tool_name: event.data?.tool_name,
+              data: event.data
+            }
+          );
+        } else if (isReplay) {
+          console.warn(
+            `[RealtimeExecutionPanel] Skipping event without agent context:`,
+            {
+              type: event.type,
+              timestamp: event.timestamp,
+              data: event.data
+            }
+          );
+        }
+        continue; // Skip events without agent context
+      }
+
+      const displayLabel = agentLabel || 'Agent';
+      const sectionKey = nodeId || agentLabel || 'default';
+
+      if (!sections.has(sectionKey)) {
+        sections.set(sectionKey, {
+          agentLabel: displayLabel,
+          nodeId: sectionKey,
+          items: [],
+          startTime: event.timestamp || new Date().toISOString(),
+        });
+      }
+
+      const section = sections.get(sectionKey)!;
+
+      // Handle different event types
+      switch (event.type) {
+        case 'on_chain_start':
+          section.startTime = event.timestamp || section.startTime;
+          break;
+
+        case 'on_chat_model_stream':
+          // Add streaming tokens to current thinking item
+          const token = event.data?.token || event.data?.content || '';
+          const cleaned = stripHiddenTagsFromToken(token);
+          const lastItem = section.items[section.items.length - 1];
+
+          if (lastItem?.type === 'thinking') {
+            lastItem.rawContent = (lastItem.rawContent || '') + token;
+            lastItem.content = (lastItem.content || '') + cleaned;
+          } else if (token) {
+            section.items.push({
+              type: 'thinking',
+              content: cleaned,
+              rawContent: token,
+              finalized: false,
+              id: `thinking-${section.items.length}`
+            });
+          }
+          break;
+
+        case 'on_chat_model_end':
+          // Mark current thinking item as finalized for markdown render
+          let foundThinking = false;
+          for (let i = section.items.length - 1; i >= 0; i--) {
+            const item = section.items[i];
+            if (item.type === 'thinking' && !item.finalized) {
+              item.finalized = true;
+              foundThinking = true;
+              break;
+            }
+          }
+
+          // FIX FOR HISTORY RECALL: If no thinking item exists (e.g. missing stream events), create one from the end event
+          if (!foundThinking && (event.data?.output || event.data?.content)) {
+            const content = typeof event.data?.output === 'string'
+              ? event.data.output
+              : event.data?.content || JSON.stringify(event.data?.output, null, 2);
+
+            if (content) {
+              section.items.push({
+                type: 'thinking',
+                content: stripHiddenTagsFromToken(content),
+                rawContent: content,
+                finalized: true,
+                id: `thinking-restored-${section.items.length}`
+              });
+            }
+          }
+          break;
+
+        case 'tool_preparing':
+          // Early notification that a tool call is being prepared (JSON streaming)
+          // This fires immediately when we detect a tool_use, before the full JSON is ready
+          {
+            // Finalize any in-progress thinking block
+            for (let i = section.items.length - 1; i >= 0; i--) {
+              const thinkingItem = section.items[i];
+              if (thinkingItem.type === 'thinking' && !thinkingItem.finalized) {
+                thinkingItem.finalized = true;
+                break;
+              }
+            }
+
+            const prepToolName = event.data?.tool_name || 'tool';
+            const prepRunId = event.data?.run_id;
+
+            // Check if we already have a tool_call for this run_id (avoid duplicates)
+            const existingPrep = section.items.find(
+              item => item.type === 'tool_call' && item.tool?.runId === prepRunId
+            );
+
+            if (!existingPrep) {
+              section.items.push({
+                type: 'tool_call',
+                tool: {
+                  toolName: prepToolName,
+                  input: 'Preparing...',
+                  status: 'running',
+                  runId: prepRunId,
+                },
+                id: `tool-prep-${prepRunId || section.items.length}`
+              });
+            }
+          }
+          break;
+
+        case 'on_tool_start':
+        case 'tool_start':
+          // Full tool start event - update the preparing entry or create new one
+          // IMPORTANT: Finalize any in-progress thinking block BEFORE adding tool call
+          // This ensures tool calls appear AFTER the thinking content, not in the middle
+          for (let i = section.items.length - 1; i >= 0; i--) {
+            const thinkingItem = section.items[i];
+            if (thinkingItem.type === 'thinking' && !thinkingItem.finalized) {
+              thinkingItem.finalized = true;
+              break;
+            }
+          }
+
+          {
+            const toolName = event.data?.tool_name || event.data?.name || 'Unknown Tool';
+            const rawInput = event.data?.input || (event.data as any)?.inputs || event.data?.input_preview || '';
+            const toolRunId = event.data?.run_id; // Unique ID for this tool call
+
+            // Check if we have a "preparing" entry to update
+            // Match by tool_name AND "Preparing..." input (since preparing events don't have the same run_id)
+            const existingToolIdx = section.items.findIndex(
+              item => item.type === 'tool_call' &&
+                item.tool?.toolName === toolName &&
+                item.tool?.input === 'Preparing...' &&
+                item.tool?.status === 'running'
+            );
+
+            // Stringify raw input once for both paths
+            const rawInputStr = typeof rawInput === 'string' ? rawInput : JSON.stringify(rawInput, null, 2);
+
+            if (existingToolIdx >= 0) {
+              // Update the existing preparing entry with full info AND the actual tool run_id
+              const existingTool = section.items[existingToolIdx];
+              if (existingTool.tool) {
+                existingTool.tool.toolName = toolName;
+                existingTool.tool.input = formatToolInput(toolName, rawInput);
+                existingTool.tool.rawInput = rawInputStr;
+                existingTool.tool.runId = toolRunId; // CRITICAL: Set the actual run_id so on_tool_end can find it
+              }
+              // Also update the id for proper tracking
+              existingTool.id = `tool-${toolRunId || section.items.length}`;
+            } else {
+              // No preparing entry, create new one
+              section.items.push({
+                type: 'tool_call',
+                tool: {
+                  toolName,
+                  // Use smart formatting to truncate large inputs (especially file content)
+                  input: formatToolInput(toolName, rawInput),
+                  rawInput: rawInputStr,
+                  status: 'running',
+                  runId: toolRunId, // Store for matching on_tool_end
+                },
+                id: `tool-${toolRunId || section.items.length}`
+              });
+            }
+          }
+          break;
+
+        case 'on_tool_end':
+          // Find the running tool item to update
+          // PRIMARY: Match by run_id (unique) if available
+          // FALLBACK: Match by tool_name for backwards compatibility
+          const endRunId = event.data?.run_id;
+          const endToolName = event.data?.tool_name;
+          let foundTool = false;
+
+          // Extract multimodal content from MCP tool results
+          const eventContentBlocks = event.data?.content_blocks as ContentBlock[] | undefined;
+          const eventArtifacts = event.data?.artifacts as ContentBlock[] | undefined;
+          const eventHasMultimodal = event.data?.has_multimodal === true;
+
+          for (let i = section.items.length - 1; i >= 0; i--) {
+            const item = section.items[i];
+            if (item.type === 'tool_call' && item.tool?.status === 'running') {
+              // Match by run_id if available (most accurate)
+              const matchByRunId = endRunId && item.tool.runId === endRunId;
+              // Fallback to tool_name if no run_id match (legacy events or missing run_id)
+              const matchByName = !matchByRunId && item.tool.toolName === endToolName;
+
+              if (matchByRunId || matchByName) {
+                item.tool.status = 'completed';
+                // Truncate large results
+                const rawResult = typeof event.data?.output === 'string'
+                  ? event.data.output
+                  : event.data?.output != null
+                    ? JSON.stringify(event.data.output, null, 2)
+                    : '';
+                const MAX_RESULT_LENGTH = 2000;
+                item.tool.result = rawResult && rawResult.length > MAX_RESULT_LENGTH
+                  ? rawResult.slice(0, MAX_RESULT_LENGTH) + `\n... (${rawResult.length - MAX_RESULT_LENGTH} more characters)`
+                  : rawResult || '';
+
+                // Add multimodal content if present
+                if (eventHasMultimodal) {
+                  item.tool.contentBlocks = eventContentBlocks;
+                  item.tool.artifacts = eventArtifacts;
+                  item.tool.hasMultimodal = true;
+                }
+
+                foundTool = true;
+                break;
+              }
+            }
+          }
+
+          // DEBUG: Log if we couldn't find a matching tool
+          if (!foundTool) {
+            console.warn('[RealtimeExecutionPanel] on_tool_end could not find matching running tool:', {
+              run_id: endRunId,
+              tool_name: endToolName,
+              section: section.agentLabel,
+              runningTools: section.items.filter(i => i.type === 'tool_call' && i.tool?.status === 'running').map(i => ({ name: i.tool?.toolName, runId: i.tool?.runId }))
+            });
+          }
+          break;
+
+        case 'on_agent_finish':
+        case 'on_chain_end':
+          section.endTime = event.timestamp || new Date().toISOString();
+          if (event.data?.output) {
+            const outputContent = typeof event.data.output === 'string'
+              ? event.data.output
+              : JSON.stringify(event.data.output, null, 2);
+
+            section.items.push({
+              type: 'output',
+              content: outputContent,
+              id: `output-${section.items.length}`
+            });
+          }
+          break;
+
+        case 'tool_progress':
+          // Tool progress events for long-running operations
+          // Display progress updates associated with a tool call
+          {
+            const progressData = event.data as {
+              tool_name: string;
+              message: string;
+              progress_type: 'started' | 'update' | 'completed' | 'error';
+              percent_complete?: number;
+              current_step?: number;
+              total_steps?: number;
+            };
+
+            // Find a running tool with this name and update its status message
+            let foundProgressTool = false;
+            for (let i = section.items.length - 1; i >= 0; i--) {
+              const item = section.items[i];
+              if (item.type === 'tool_call' && item.tool?.toolName === progressData.tool_name && item.tool?.status === 'running') {
+                // Update the tool's progress info (stored as metadata)
+                item.tool.progressMessage = progressData.message;
+                item.tool.progressPercent = progressData.percent_complete;
+                item.tool.progressStep = progressData.current_step;
+                item.tool.progressTotal = progressData.total_steps;
+                foundProgressTool = true;
+                break;
+              }
+            }
+
+            // If no matching tool found, add as a standalone progress item
+            if (!foundProgressTool) {
+              section.items.push({
+                type: 'tool_call',
+                tool: {
+                  toolName: progressData.tool_name,
+                  input: progressData.message,
+                  status: progressData.progress_type === 'error' ? 'error' :
+                    progressData.progress_type === 'completed' ? 'completed' : 'running',
+                  progressMessage: progressData.message,
+                  progressPercent: progressData.percent_complete,
+                  progressStep: progressData.current_step,
+                  progressTotal: progressData.total_steps,
+                },
+                id: `progress-${progressData.tool_name}-${section.items.length}`
+              });
+            }
+          }
+          break;
+
+        case 'custom_event':
+          // LangGraph-style custom streaming events (progress bars, status badges, file operations)
+          {
+            const customData = event.data as {
+              event_type: string;
+              event_id?: string;
+              payload: Record<string, any>;
+              tool_name?: string;
+              agent_label?: string;
+              node_id?: string;
+              timestamp: string;
+            };
+
+            const eventId = customData.event_id || `custom-${customData.event_type}-${Date.now()}`;
+
+            // Check if this is a persistent event that should update an existing item
+            if (customData.event_id) {
+              const existingIdx = section.items.findIndex(
+                item => item.type === 'custom_event' && item.customEvent?.eventId === customData.event_id
+              );
+
+              if (existingIdx >= 0) {
+                // Update existing event in-place
+                const existing = section.items[existingIdx];
+                if (existing.customEvent) {
+                  existing.customEvent.data = {
+                    id: eventId,
+                    data: customData.payload,
+                    toolName: customData.tool_name,
+                    agentLabel: customData.agent_label,
+                    nodeId: customData.node_id,
+                    timestamp: customData.timestamp,
+                  } as any;
+                }
+                break;
+              }
+            }
+
+            // Create new custom event item
+            const eventType = customData.event_type as 'progress' | 'status' | 'file_status';
+            section.items.push({
+              type: 'custom_event',
+              customEvent: {
+                eventType,
+                eventId: customData.event_id,
+                data: {
+                  id: eventId,
+                  data: customData.payload,
+                  toolName: customData.tool_name,
+                  agentLabel: customData.agent_label,
+                  nodeId: customData.node_id,
+                  timestamp: customData.timestamp,
+                } as any,
+              },
+              id: `custom-${eventId}-${section.items.length}`,
+            });
+          }
+          break;
+
+        case 'error':
+          // Mark any running tool calls as errored
+          section.items.forEach(item => {
+            if (item.type === 'tool_call' && item.tool?.status === 'running') {
+              item.tool.status = 'error';
+              item.tool.result = event.data?.error || 'Unknown error';
+            }
+          });
+          break;
+
+        case 'agent_context':
+          // Store agent context for debugging
+          section.context = event.data as AgentSection['context'];
+          break;
+      }
+    }
+
+    // Update last processed index
+    lastProcessedIndexRef.current = events.length;
+
+    return Array.from(sections.values());
+  }, [events]);
+
+  // Filter and Search Logic
+  const filteredSections = useMemo(() => {
+    let result = agentSections;
+
+    // Apply Type Filter
+    if (filterType !== 'all') {
+      result = result.map(section => ({
+        ...section,
+        items: section.items.filter(item => item.type === filterType)
+      })).filter(section => section.items.length > 0);
+    }
+
+    // Apply Search
+    if (searchQuery) {
+      const lowerQuery = searchQuery.toLowerCase();
+      result = result.map(section => ({
+        ...section,
+        items: section.items.filter(item => {
+          if (item.type === 'thinking') return (item.content || '').toLowerCase().includes(lowerQuery);
+          if (item.type === 'tool_call') return (item.tool?.toolName || '').toLowerCase().includes(lowerQuery) || (item.tool?.input || '').toLowerCase().includes(lowerQuery);
+          if (item.type === 'output') return (item.content || '').toLowerCase().includes(lowerQuery);
+          return false;
+        })
+      })).filter(section => section.items.length > 0);
+    }
+
+    return result;
+  }, [agentSections, filterType, searchQuery]);
+
+  // Calculate total text length for typewriter effect
+  const totalTextLength = useMemo(() => {
+    let length = 0;
+    for (const section of filteredSections) {
+      length += section.agentLabel.length + 20; // Agent header
+      for (const item of section.items) {
+        if (item.type === 'thinking' && item.content) {
+          length += item.content.length;
+        } else if (item.type === 'tool_call' && item.tool) {
+          length += item.tool.toolName.length + (item.tool.input?.length || 0) + (item.tool.result?.length || 0) + 50;
+        } else if (item.type === 'output' && item.content) {
+          length += item.content.length + 20;
+        }
+      }
+    }
+    return length;
+  }, [filteredSections]);
+
+  // Rotate tips every 5 seconds when idle
+  useEffect(() => {
+    if (agentSections.length === 0) {
+      const interval = setInterval(() => {
+        setCurrentTipIndex((prev) => (prev + 1) % knowledgeTips.length);
+      }, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [agentSections.length, knowledgeTips.length]);
+
+  // Content is now always shown immediately - no artificial delays or typewriter effect
+
+  // Auto-scroll state
+  const [isAutoScroll, setIsAutoScroll] = useState(!isReplay); // Default to false for replay
+  const wasAtBottomRef = useRef(!isReplay); // Track if we were at bottom
+  const [isScrollable, setIsScrollable] = useState(false); // Track if content is scrollable
+  const hasScrolledToTopRef = useRef(false); // Track if we've scrolled to top for replay
+
+  // Handle scroll events to detect user scrolling up
+  const handleScroll = () => {
+    if (!contentRef.current) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = contentRef.current;
+    // More tolerant threshold - 150px instead of 50px for better stickiness
+    const isAtBottom = Math.abs(scrollHeight - clientHeight - scrollTop) < 150;
+
+    wasAtBottomRef.current = isAtBottom;
+    setIsAutoScroll(isAtBottom);
+    setIsScrollable(scrollHeight > clientHeight);
+  };
+
+  // Check if content is scrollable whenever content changes
+  useEffect(() => {
+    if (contentRef.current) {
+      const { scrollHeight, clientHeight } = contentRef.current;
+      setIsScrollable(scrollHeight > clientHeight);
+    }
+  }, [totalTextLength, agentSections]);
+
+  // Auto-scroll to bottom (only for live mode)
+  useEffect(() => {
+    // Always auto-scroll if isAutoScroll is true and we are visible
+    if (contentRef.current && isVisible && isAutoScroll) {
+      // Use requestAnimationFrame for smoother, more reliable scrolling
+      requestAnimationFrame(() => {
+        if (contentRef.current) {
+          contentRef.current.scrollTop = contentRef.current.scrollHeight;
+        }
+      });
+    }
+  }, [isVisible, isAutoScroll, totalTextLength, agentSections]);
+
+  // Scroll to top when in replay mode (historical view)
+  useEffect(() => {
+    if (isReplay && isVisible && contentRef.current && agentSections.length > 0 && !hasScrolledToTopRef.current) {
+      requestAnimationFrame(() => {
+        if (contentRef.current) {
+          contentRef.current.scrollTop = 0;
+          hasScrolledToTopRef.current = true;
+        }
+      });
+    }
+  }, [isReplay, isVisible, agentSections.length]);
+
+  // Reset scroll flag when switching modes or content changes
+  useEffect(() => {
+    if (!isReplay) {
+      hasScrolledToTopRef.current = false;
+    }
+  }, [isReplay]);
+
+  const scrollToBottom = () => {
+    if (contentRef.current) {
+      contentRef.current.scrollTo({
+        top: contentRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
+      setIsAutoScroll(true);
+    }
+  };
+
+
+  if (!isVisible) {
+    return null;
+  }
+
+  // Render text immediately without any character limiting
+  const renderTextWithLimit = (text: string, _startIndex: number): { rendered: string; charsUsed: number } => {
+    // Always show all content immediately - no artificial typewriter delays
+    return { rendered: text, charsUsed: text.length };
+  };
+
+  let charIndex = 0;
+
+  return (
+    <div
+      className={`fixed left-0 top-0 h-full z-50 transition-all duration-300 ease-out shadow-2xl flex flex-col ${isFullScreen ? 'w-full' : 'w-[750px] md:w-[850px]'} ${!isFullScreen ? 'border-r' : ''}`}
+      style={{
+        transform: isVisible ? 'translateX(0)' : 'translateX(-100%)',
+        backgroundColor: 'var(--color-background-light)',
+        borderColor: 'var(--color-border-dark)'
+      }}
+    >
+      {/* Header */}
+      <div className="flex flex-col border-b flex-shrink-0" style={{
+        backgroundColor: 'var(--color-primary)',
+        borderBottomColor: 'var(--color-border-dark)'
+      }}>
+        <div className="flex items-center justify-between px-6 py-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2" style={{
+              backgroundColor: 'color-mix(in srgb, var(--color-on-accent) 20%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--color-on-accent) 30%, transparent)',
+              borderRadius: 'var(--radius-control)'
+            }}>
+              {isReplay ? <HistoryIcon className="w-5 h-5" style={{ color: 'var(--color-on-accent)' }} /> : <Activity className="w-5 h-5" style={{ color: 'var(--color-on-accent)' }} />}
+            </div>
+            <div>
+              <h2 className="text-lg font-bold flex items-center gap-2 font-display" style={{ color: 'var(--color-on-accent)', textShadow: '0 1px 2px rgba(0, 0, 0, 0.25)' }}>
+                {workflowName || (isReplay ? t('Execution History') : t('Live Execution'))}
+                {isFullScreen && <span className="badge-mono" style={{
+                  backgroundColor: 'color-mix(in srgb, var(--color-on-accent) 15%, transparent)',
+                  border: '1px solid color-mix(in srgb, var(--color-on-accent) 30%, transparent)',
+                  color: 'var(--color-on-accent)'
+                }}>{t('First Person View')}</span>}
+              </h2>
+              <div className="text-sm flex items-center gap-2" style={{ color: 'color-mix(in srgb, var(--color-on-accent) 90%, transparent)', textShadow: '0 1px 2px rgba(0, 0, 0, 0.15)' }}>
+                {isReplay ? (
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'color-mix(in srgb, var(--color-on-accent) 60%, transparent)' }}></span>
+                    {t('Historical View')}
+                  </span>
+                ) : (
+                  executionStatus?.state === 'running' ? (
+                    <>
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ backgroundColor: 'var(--color-on-accent)' }}></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2" style={{ backgroundColor: 'var(--color-on-accent)' }}></span>
+                      </span>
+                      {latestEvent?.type === 'on_tool_start' ? `Running tool: ${latestEvent.data.tool_name}...` :
+                        latestEvent?.type === 'on_chat_model_stream' ? t('Thinking...') :
+                          t('Active')}
+                    </>
+                  ) : (
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'var(--color-success)' }}></span>
+                      {t('Completed')}
+                    </span>
+                  )
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Full Screen Metrics Display */}
+          {isFullScreen && workflowMetrics && (
+            <div className="hidden md:flex items-center gap-6 px-8 animate-in fade-in duration-300">
+              <div className="flex flex-col items-center">
+                <span className="text-xs uppercase tracking-wider" style={{ color: 'color-mix(in srgb, var(--color-on-accent) 60%, transparent)' }}>{t('Duration')}</span>
+                <span className="text-xl font-mono font-bold" style={{ color: 'var(--color-on-accent)' }}>{workflowMetrics.duration}</span>
+              </div>
+              <div className="w-px h-8" style={{ backgroundColor: 'color-mix(in srgb, var(--color-on-accent) 20%, transparent)' }} />
+              <div className="flex flex-col items-center">
+                <span className="text-xs uppercase tracking-wider" style={{ color: 'color-mix(in srgb, var(--color-on-accent) 60%, transparent)' }}>{t('Tokens')}</span>
+                <span className="text-xl font-mono font-bold" style={{ color: 'var(--color-on-accent)' }}>{workflowMetrics.totalTokens.toLocaleString()}</span>
+              </div>
+              <div className="w-px h-8" style={{ backgroundColor: 'color-mix(in srgb, var(--color-on-accent) 20%, transparent)' }} />
+              <div className="flex flex-col items-center">
+                <span className="text-xs uppercase tracking-wider" style={{ color: 'color-mix(in srgb, var(--color-on-accent) 60%, transparent)' }}>{t('Est. Cost')}</span>
+                <span className="text-xl font-mono font-bold" style={{ color: 'var(--color-on-accent)' }}>
+                  {(() => {
+                    // Estimate 75% prompt, 25% completion tokens
+                    const promptTokens = Math.round(workflowMetrics.totalTokens * 0.75);
+                    const completionTokens = Math.round(workflowMetrics.totalTokens * 0.25);
+                    return calculateAndFormatCost(promptTokens, completionTokens, 'gpt-5.4');
+                  })()}
+                </span>
+              </div>
+              <div className="w-px h-8" style={{ backgroundColor: 'color-mix(in srgb, var(--color-on-accent) 20%, transparent)' }} />
+              <div className="flex flex-col items-center">
+                <span className="text-xs uppercase tracking-wider" style={{ color: 'color-mix(in srgb, var(--color-on-accent) 60%, transparent)' }}>{t('Tools')}</span>
+                <span className="text-xl font-mono font-bold" style={{ color: 'var(--color-on-accent)' }}>{workflowMetrics.toolCalls}</span>
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2">
+            {/* Stop Execution Button */}
+            {!isReplay && executionStatus?.state === 'running' && events.length > 0 && (
+              <button
+                onClick={async () => {
+                  if (confirm('Are you sure you want to stop this execution?')) {
+                    try {
+                      // Use currentTaskId from props first (most reliable after reload), 
+                      // fallback to extracting from events
+                      const taskId = currentTaskId || (events[0]?.data as any)?.task_id;
+                      if (taskId) {
+                        await apiClient.cancelTask(taskId);
+                        if (onClose) onClose(); // Auto-close or allow user to see cancelled state
+                      } else {
+                        alert('Could not identify task ID to cancel.');
+                      }
+                    } catch (error) {
+                      console.error('Failed to cancel task:', error);
+                    }
+                  }
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold font-mono uppercase tracking-wider transition-all hover:opacity-90 shadow-sm"
+                style={{
+                  backgroundColor: 'var(--color-on-accent)',
+                  color: 'var(--color-error)',
+                  borderRadius: 'var(--radius-control)'
+                }}
+                title={t('Stop Execution')}
+              >
+                <XCircle className="w-4 h-4" />
+                <span>{t('Stop Execution')}</span>
+              </button>
+            )}
+
+            {/* Full Screen Toggle */}
+            <button
+              onClick={() => setIsFullScreen(!isFullScreen)}
+              className="p-2 transition-all opacity-90 hover:opacity-100 hover:bg-[color-mix(in_srgb,var(--color-on-accent)_15%,transparent)]"
+              style={{ color: 'var(--color-on-accent)', borderRadius: 'var(--radius-control)', textShadow: '0 1px 2px rgba(0, 0, 0, 0.15)' }}
+              title={isFullScreen ? "Exit Full Screen" : "First Person View"}
+            >
+              {isFullScreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
+            </button>
+            {/* Workflow Metrics */}
+            {workflowMetrics && (
+              <div className="flex items-center gap-2">
+                {workflowMetrics.totalTokens > 0 && (
+                  <>
+                    <div className="badge-mono" style={{ background: 'color-mix(in srgb, var(--color-on-accent) 15%, transparent)', borderColor: 'color-mix(in srgb, var(--color-on-accent) 30%, transparent)', color: 'var(--color-on-accent)' }} title={t('Estimated Cost')}>
+                      <DollarSign className="w-3 h-3" />
+                      <span>{(() => {
+                        const promptTokens = Math.round(workflowMetrics.totalTokens * 0.75);
+                        const completionTokens = Math.round(workflowMetrics.totalTokens * 0.25);
+                        return calculateAndFormatCost(promptTokens, completionTokens, 'gpt-5.4');
+                      })()}</span>
+                    </div>
+                    <div className="badge-mono" style={{ background: 'color-mix(in srgb, var(--color-on-accent) 15%, transparent)', borderColor: 'color-mix(in srgb, var(--color-on-accent) 30%, transparent)', color: 'var(--color-on-accent)' }} title={t('Total Tokens')}>
+                      <span>💬</span>
+                      <span>{workflowMetrics.totalTokens.toLocaleString()}</span>
+                    </div>
+                  </>
+                )}
+                {workflowMetrics.toolCalls > 0 && (
+                  <div className="badge-mono" style={{ background: 'color-mix(in srgb, var(--color-on-accent) 15%, transparent)', borderColor: 'color-mix(in srgb, var(--color-on-accent) 30%, transparent)', color: 'var(--color-on-accent)' }} title={t('Tool Calls')}>
+                    <Wrench className="w-3 h-3" />
+                    <span>{workflowMetrics.toolCalls}</span>
+                  </div>
+                )}
+                {workflowMetrics.duration !== '0s' && (
+                  <div className="badge-mono" style={{ background: 'color-mix(in srgb, var(--color-on-accent) 15%, transparent)', borderColor: 'color-mix(in srgb, var(--color-on-accent) 30%, transparent)', color: 'var(--color-on-accent)' }} title={t('Duration')}>
+                    <span>⏱️</span>
+                    <span>{workflowMetrics.duration}</span>
+                  </div>
+                )}
+                {workflowMetrics.errors > 0 && (
+                  <div className="badge-mono tone-error" title={t('Errors')}>
+                    <XCircle className="w-3 h-3" />
+                    <span>{workflowMetrics.errors}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Memory Indicator */}
+            <div className="badge-mono" style={{ background: 'color-mix(in srgb, var(--color-on-accent) 15%, transparent)', borderColor: 'color-mix(in srgb, var(--color-on-accent) 30%, transparent)', color: 'var(--color-on-accent)' }} title={t('Memory Usage')}>
+              <Activity className="w-3 h-3" />
+              <span>{memoryProfile.currentMemoryMB.toFixed(1)} MB</span>
+              {memoryProfile.memoryTrend === 'increasing' && <span style={{ color: 'var(--color-warning)' }}>↑</span>}
+            </div>
+
+            {onClose && (
+              <button
+                onClick={onClose}
+                className="p-2 transition-all opacity-90 hover:opacity-100 hover:bg-[color-mix(in_srgb,var(--color-on-accent)_15%,transparent)]"
+                style={{ color: 'var(--color-on-accent)', borderRadius: 'var(--radius-control)', textShadow: '0 1px 2px rgba(0, 0, 0, 0.15)' }}
+                title={t('Close')}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* User Prompt Display */}
+        {
+          userPrompt && (
+            <div className="px-6 py-3 border-t" style={{ borderColor: 'var(--color-border-dark)', backgroundColor: 'var(--color-panel-dark)' }}>
+              <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: 'var(--color-text-muted)' }}>
+                {t('Original Query')}
+              </p>
+              <p className="text-sm leading-relaxed" style={{ color: 'var(--color-text-primary)' }}>
+                {userPrompt}
+              </p>
+            </div>
+          )
+        }
+
+        {/* Search and Filter Bar */}
+        <div className="px-6 py-2 flex items-center gap-2 border-t" style={{ borderColor: 'var(--color-border-dark)', backgroundColor: 'var(--color-background-dark)' }}>
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
+            <input
+              type="text"
+              placeholder={t('Search execution logs...')}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-3 py-1.5 text-sm focus:outline-none focus:ring-1"
+              style={{
+                backgroundColor: 'var(--color-input-background, rgba(0,0,0,0.2))',
+                border: '1px solid var(--color-border-dark)',
+                color: 'var(--color-text-primary)',
+                borderColor: 'var(--color-border-dark)',
+                borderRadius: 'var(--radius-control)',
+              }}
+            />
+          </div>
+          <div className="flex items-center p-0.5 border" style={{ backgroundColor: 'var(--color-input-background, rgba(0,0,0,0.2))', borderColor: 'var(--color-border-dark)', borderRadius: 'var(--radius-control)' }}>
+            {(['all', 'tool_call', 'thinking', 'output'] as const).map((type) => (
+              <button
+                key={type}
+                onClick={() => setFilterType(type)}
+                className={`px-2.5 py-1 text-xs font-medium transition-colors`}
+                style={{
+                  backgroundColor: filterType === type ? 'var(--color-primary)' : 'transparent',
+                  color: filterType === type ? 'var(--color-on-accent)' : 'var(--color-text-muted)',
+                  borderRadius: 'var(--radius-control)',
+                }}
+              >
+                {type === 'all' ? 'All' : type === 'tool_call' ? 'Tools' : type.charAt(0).toUpperCase() + type.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div >
+
+      {/* Error Banner - Prominent dismissable error display */}
+      {workflowErrors.length > 0 && (
+        <div className="flex-shrink-0 px-4 py-3 space-y-2" style={{ backgroundColor: 'var(--color-error-wash)', borderBottom: '1px solid var(--color-error-border)' }}>
+          {workflowErrors.map((error) => (
+            <div
+              key={error.id}
+              className="flex items-start gap-3 p-3 tone-error"
+              style={{
+                border: '1px solid var(--color-error-border)',
+                borderRadius: 'var(--radius-card)'
+              }}
+            >
+              <XCircle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: 'var(--color-error)' }} />
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-sm" style={{ color: 'var(--color-error)' }}>
+                  {t('Workflow {{type}}', { type: error.errorType })}
+                </div>
+                <div className="text-sm mt-1 break-words" style={{ color: 'var(--color-text-primary)' }}>
+                  {error.message}
+                </div>
+              </div>
+              <button
+                onClick={() => setDismissedErrors(prev => new Set([...prev, error.id]))}
+                className="p-1 rounded hover:bg-[var(--color-error-wash)] transition-colors flex-shrink-0"
+                title={t('Dismiss error')}
+              >
+                <X className="w-4 h-4" style={{ color: 'var(--color-error)' }} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Workflow Failed Banner - Shows when workflow completed with error status */}
+      {workflowFailed && workflowErrors.length === 0 && (
+        <div className="flex-shrink-0 px-4 py-3" style={{ backgroundColor: 'var(--color-error-wash)', borderBottom: '1px solid var(--color-error-border)' }}>
+          <div
+            className="flex items-center gap-3 p-3 tone-error"
+            style={{
+              border: '1px solid var(--color-error-border)',
+              borderRadius: 'var(--radius-card)'
+            }}
+          >
+            <XCircle className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--color-error)' }} />
+            <div className="text-sm font-medium" style={{ color: 'var(--color-error)' }}>
+              {t('Workflow execution failed. Check the logs above for details.')}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Content */}
+      < div
+        ref={contentRef}
+        onScroll={handleScroll}
+        className={`flex-1 overflow-y-auto px-6 py-4 space-y-6 custom-scrollbar pb-32 ${isFullScreen ? 'max-w-5xl mx-auto w-full' : ''}`}
+        style={{
+          scrollBehavior: 'smooth',
+        }}
+      >
+        {
+          filteredSections.length === 0 ? (
+            <div className="flex flex-col h-full text-left px-8 py-12 space-y-6">
+              {searchQuery ? (
+                <div className="text-center mt-20" style={{ color: 'var(--color-text-muted)' }}>
+                  <Search className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                  <p>{t('No results found for "{{query}}"', { query: searchQuery })}</p>
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="mt-2 text-sm hover:underline"
+                    style={{ color: 'var(--color-primary)' }}
+                  >
+                    {t('Clear search')}
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <h3 className="text-2xl font-bold mb-2" style={{ color: 'var(--color-text-primary)' }}>
+                      {t('Live Execution Panel')}
+                    </h3>
+                    <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                      {t('Real-time workflow execution monitoring and debugging')}
+                    </p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="p-4 surface-card-sm">
+                      <h4 className="text-sm font-semibold mb-2 flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
+                        <span className="material-symbols-outlined text-base" style={{ color: 'var(--color-primary)' }}>help</span>
+                        {t('What does this panel show?')}
+                      </h4>
+                      <p className="text-xs leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
+                        {t('This panel displays live execution details as your workflow runs, including agent reasoning, tool calls, and outputs in real-time.')}
+                      </p>
+                    </div>
+
+                    <div className="p-4 surface-card-sm">
+                      <h4 className="text-sm font-semibold mb-2 flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
+                        <span className="material-symbols-outlined text-base" style={{ color: 'var(--color-primary)' }}>play_circle</span>
+                        {t('How do I start?')}
+                      </h4>
+                      <p className="text-xs leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
+                        {t('Click the green')} <strong>{t('Run Workflow')}</strong> {t('button in the toolbar to execute your workflow. The panel will automatically populate with execution details.')}
+                      </p>
+                    </div>
+
+                    <div className="p-4 surface-card-sm">
+                      <h4 className="text-sm font-semibold mb-2 flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
+                        <span className="material-symbols-outlined text-base" style={{ color: 'var(--color-primary)' }}>psychology</span>
+                        {t('Thinking vs Panel')}
+                      </h4>
+                      <p className="text-xs leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
+                        <strong>{t('Thinking toasts')}</strong> {t('show brief status updates on the canvas. This')} <strong>{t('Panel')}</strong> {t('shows complete, detailed execution logs with full context.')}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Rotating Knowledge Tips */}
+                  <div className="mt-auto pt-6 border-t" style={{ borderColor: 'var(--color-border-dark)' }}>
+                    <div className="mb-4">
+                      <p className="text-xs font-semibold mb-1" style={{ color: 'var(--color-text-primary)' }}>
+                        {t('Did you know?')}
+                      </p>
+                      <div
+                        key={currentTipIndex}
+                        className="p-4 surface-card-sm animate-in fade-in slide-in-from-bottom-2 duration-500"
+                      >
+                        <div>
+                          <h5 className="text-sm font-bold mb-1" style={{ color: 'var(--color-text-primary)' }}>
+                            {knowledgeTips[currentTipIndex].title}
+                          </h5>
+                          <p className="text-xs leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
+                            {knowledgeTips[currentTipIndex].tip}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-center gap-1.5 mt-3">
+                        {knowledgeTips.map((tip, index) => (
+                          <button
+                            key={tip.title}
+                            onClick={() => setCurrentTipIndex(index)}
+                            className="transition-all duration-300"
+                            style={{
+                              width: currentTipIndex === index ? '24px' : '6px',
+                              height: '6px',
+                              borderRadius: '3px',
+                              backgroundColor: currentTipIndex === index ? 'var(--color-primary)' : 'var(--color-border-dark)',
+                              opacity: currentTipIndex === index ? 1 : 0.5
+                            }}
+                            aria-label={`Go to tip ${index + 1}`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <p className="text-xs text-center" style={{ color: 'var(--color-text-muted)' }}>
+                      <strong>{t('Tip:')}</strong> {t('You can auto-scroll by staying at the bottom, or scroll up to pause and review earlier steps.')}
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
+            <>
+              {filteredSections.map((section, sectionIdx) => {
+                return (
+                  <div
+                    key={`${section.nodeId}-${sectionIdx}`}
+                    className={`terminal-block mb-3 last:mb-0 transition-all duration-200 ${!section.endTime && !isReplay && executionStatus?.state === 'running' ? 'streaming-pulse' : ''}`}
+                  >
+                    {/* Agent Header */}
+                    <div className="terminal-block-header">
+                      <span className="terminal-dots">
+                        <span />
+                        <span />
+                        <span />
+                      </span>
+                      <span className="font-mono uppercase tracking-wider truncate flex-1 min-w-0" style={{ color: 'var(--code-text)' }}>
+                        {(() => {
+                          const headerText = section.agentLabel;
+                          const result = renderTextWithLimit(headerText, charIndex);
+                          charIndex += result.charsUsed;
+                          return result.rendered;
+                        })()}
+                      </span>
+                      <span className="font-mono flex-shrink-0" style={{ color: 'var(--code-comment)' }}>
+                        {new Date(section.startTime).toLocaleTimeString()}
+                      </span>
+                      <Badge tone={section.endTime ? 'success' : 'warning'} dot pulse={!section.endTime} className="flex-shrink-0">
+                        {section.endTime ? t('Done') : t('Running')}
+                      </Badge>
+                    </div>
+
+                    <div className="space-y-2 p-3">
+                    {/* Agent Context Viewer (for debugging) */}
+                    {section.context && (
+                      <AgentContextViewer context={section.context} />
+                    )}
+
+                    {/* Stream Items (Interleaved Thinking, Tools, Output) */}
+                    <div className="space-y-2">
+                      {section.items.map((item) => {
+                        // Thinking & Output
+                        if (item.type === 'thinking' || item.type === 'output') {
+                          if (!item.content && !item.rawContent) return null;
+
+                          const base = item.content || '';
+                          const result = renderTextWithLimit(base, charIndex);
+                          charIndex += result.charsUsed;
+                          if (!result.rendered) return null;
+
+                          // Always render markdown - modern browsers handle re-parsing well
+                          // This gives a much better live preview experience
+                          const isLiveThinking = item.type === 'thinking' && !item.finalized && !isReplay;
+                          return (
+                            <div key={item.id}>
+                              <div
+                                className="prose prose-invert chat-markdown max-w-none"
+                                style={{
+                                  color: 'var(--code-text)',
+                                  fontFamily: 'var(--font-family-sans)'
+                                }}
+                              >
+                              <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
+                                components={{
+                                  code: ({ node, inline, className, children, ...props }: any) => {
+                                    const match = /language-(\w+)/.exec(className || '');
+                                    const language = match ? match[1] : 'text';
+                                    if (!inline && match) {
+                                      return <CodeBlock language={language}>{String(children).replace(/\n$/, '')}</CodeBlock>;
+                                    }
+                                    return (
+                                      <code className="px-1.5 py-0.5 rounded text-sm font-mono" style={{
+                                        backgroundColor: 'color-mix(in srgb, var(--code-text) 10%, transparent)',
+                                        color: 'var(--code-keyword)'
+                                      }} {...props}>
+                                        {children}
+                                      </code>
+                                    );
+                                  },
+                                  h1: ({ children }: any) => (
+                                    <h1 className="text-3xl font-bold mt-8 mb-4 border-b-2 pb-2" style={{ color: 'var(--code-text)', borderColor: 'color-mix(in srgb, var(--code-text) 20%, transparent)' }}>
+                                      {children}
+                                    </h1>
+                                  ),
+                                  h2: ({ children }: any) => (
+                                    <h2 className="text-2xl font-bold mt-6 mb-3" style={{ color: 'var(--code-text)' }}>
+                                      {children}
+                                    </h2>
+                                  ),
+                                  h3: ({ children }: any) => (
+                                    <h3 className="text-xl font-bold mt-4 mb-2" style={{ color: 'var(--code-text)' }}>
+                                      {children}
+                                    </h3>
+                                  ),
+                                  p: ({ children }: any) => (
+                                    <p className="mb-4 leading-relaxed" style={{ color: 'var(--code-text)' }}>
+                                      {children}
+                                    </p>
+                                  ),
+                                  ul: ({ children }: any) => (
+                                    <ul className="list-disc mb-4 space-y-1.5 pl-6" style={{ color: 'var(--code-text)' }}>
+                                      {children}
+                                    </ul>
+                                  ),
+                                  ol: ({ children }: any) => (
+                                    <ol className="list-decimal mb-4 space-y-1.5 pl-6" style={{ color: 'var(--code-text)' }}>
+                                      {children}
+                                    </ol>
+                                  ),
+                                  li: ({ children }: any) => (
+                                    <li className="pl-1" style={{ color: 'var(--code-text)' }}>
+                                      {children}
+                                    </li>
+                                  ),
+                                  blockquote: ({ children }: any) => (
+                                    <blockquote className="border-l-4 pl-4 py-2 my-4 italic" style={{
+                                      borderColor: 'var(--color-primary)',
+                                      backgroundColor: 'color-mix(in srgb, var(--code-text) 6%, transparent)',
+                                      color: 'var(--code-text)'
+                                    }}>
+                                      {children}
+                                    </blockquote>
+                                  ),
+                                }}
+                              >
+                                {result.rendered}
+                              </ReactMarkdown>
+                              </div>
+                              {isLiveThinking && (
+                                <div className="terminal-prompt mt-1">
+                                  <span className="thinking-shimmer terminal-caret">{t('Thinking')}</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        }
+
+                        // Tool Calls
+                        if (item.type === 'tool_call' && item.tool) {
+                          // Check if tool matches filter/search
+                          const matches = !searchQuery ||
+                            item.tool.toolName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            (item.tool.input || '').toLowerCase().includes(searchQuery.toLowerCase());
+
+                          if (!matches) return null;
+
+                          const renderedHeader = renderTextWithLimit(item.tool.toolName, charIndex).rendered;
+                          charIndex += item.tool.toolName.length;
+
+                          const renderedInput = renderTextWithLimit(item.tool.input, charIndex).rendered;
+                          charIndex += item.tool.input.length;
+
+                          const renderedResult = item.tool.result ? renderTextWithLimit(item.tool.result, charIndex).rendered : '';
+                          if (item.tool.result) charIndex += item.tool.result.length;
+
+                          return (
+                            <ToolCallItem
+                              key={item.id}
+                              status={item.tool.status}
+                              toolName={item.tool.toolName}
+                              renderedHeader={renderedHeader}
+                              renderedInput={renderedInput}
+                              renderedResult={renderedResult}
+                              rawInput={item.tool.rawInput}
+                              contentBlocks={item.tool.contentBlocks}
+                              artifacts={item.tool.artifacts}
+                              hasMultimodal={item.tool.hasMultimodal}
+                              progressMessage={item.tool.progressMessage}
+                              progressPercent={item.tool.progressPercent}
+                              progressStep={item.tool.progressStep}
+                              progressTotal={item.tool.progressTotal}
+                            />
+                          );
+                        }
+
+                        // Custom Events (LangGraph-style progress bars, status badges, file operations)
+                        if (item.type === 'custom_event' && item.customEvent) {
+                          const { eventType, data } = item.customEvent;
+
+                          switch (eventType) {
+                            case 'progress':
+                              return (
+                                <ProgressCard
+                                  key={item.id}
+                                  event={data as ProgressEvent}
+                                  compact={false}
+                                />
+                              );
+                            case 'status':
+                              return (
+                                <StatusBadge
+                                  key={item.id}
+                                  event={data as StatusEvent}
+                                  compact={false}
+                                />
+                              );
+                            case 'file_status':
+                              return (
+                                <FileOperationCard
+                                  key={item.id}
+                                  event={data as FileStatusEvent}
+                                  compact={false}
+                                />
+                              );
+                            default:
+                              return null;
+                          }
+                        }
+
+                        return null;
+                      })}
+                    </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )
+        }
+      </div >
+
+      {/* Scroll to Bottom Button - Only show when content is scrollable */}
+      {
+        isScrollable && (
+          <button
+            onClick={scrollToBottom}
+            className="absolute bottom-6 right-6 p-2.5 rounded-full shadow-md transition-all hover:scale-110 hover:shadow-lg"
+            title={t('Scroll to bottom')}
+            style={{
+              zIndex: 50,
+              backgroundColor: 'var(--color-primary)',
+              color: 'var(--color-on-accent)',
+              opacity: isAutoScroll ? 0.3 : 1
+            }}
+          >
+            <ArrowDown className="w-4 h-4" />
+          </button>
+        )
+      }
+
+      {/* Follow Up Footer - Shows when execution completes */}
+      {executionStatus?.state === 'completed' && !isReplay && currentTaskId && onContinueFromTask && (
+        <div
+          className="flex-shrink-0 px-4 py-3 border-t"
+          style={{
+            borderColor: 'var(--color-border-dark)',
+            backgroundColor: 'var(--color-panel-dark)',
+          }}
+        >
+          <button
+            onClick={() => onContinueFromTask(currentTaskId)}
+            className="w-full flex items-center justify-center gap-3 px-4 py-3 font-medium text-sm transition-all hover:opacity-90"
+            style={{
+              backgroundColor: 'var(--color-primary)',
+              color: 'var(--color-on-accent)',
+              borderRadius: 'var(--radius-control)',
+            }}
+          >
+            <span className="material-symbols-outlined text-lg">reply</span>
+            {t('Continue this conversation')}
+          </button>
+        </div>
+      )}
+
+      {/* Subagent Panels - Slide out from right when subagents are active */}
+      {
+        activeSubagents.length > 0 && (
+          <div
+            className="fixed top-0 h-full z-40 transition-all duration-300 ease-out"
+            style={{
+              left: isFullScreen ? '66.666%' : '850px',
+              width: isFullScreen ? '33.333%' : '400px',
+              backgroundColor: 'transparent'
+            }}
+          >
+            <SubAgentPanelStack
+              subagents={activeSubagents}
+              isVisible={true}
+            />
+          </div>
+        )
+      }
+    </div >
+
+  );
+}

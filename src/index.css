@@ -1,0 +1,992 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400..700;1,400..700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200');
+
+@import "tailwindcss";
+
+/* Tailwind 4: drive dark: utilities from the theme's .dark class, not the OS
+   preference. applyTheme() in src/lib/themes.ts owns the class. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-primary: #D98984;
+  --color-background-light: #FFF8ED;
+  --color-background-dark: #F8E7DC;
+  --color-panel-dark: #F6D4CF;
+  --color-border-dark: #102D43;
+  --color-text-muted: #7B6870;
+  --color-text-primary: #12283B;
+
+  /* Semantic status tones (peony defaults; overridden per-theme at runtime) */
+  --color-success: #3E7C4F;
+  --color-warning: #B07D2B;
+  --color-error: #B6463F;
+  --color-info: #3A6B8A;
+  --color-on-accent: #FFFFFF;
+
+  --font-family-display: Inter, sans-serif;
+  --font-family-sans: Manrope, system-ui, -apple-system, sans-serif;
+  --font-family-serif: 'Fraunces', Georgia, serif;
+  --font-family-mono: 'JetBrains Mono', 'Monaco', 'Menlo', monospace;
+}
+
+/* Extended design tokens (theme-switched by applyTheme; these are the peony
+   light-mode defaults). Components consume these instead of hardcoding
+   shadows/radii so one classname works in light (offset shadows) and dark
+   (glows) without branching. */
+:root {
+  --color-success-wash: color-mix(in srgb, #3E7C4F 11%, transparent);
+  --color-warning-wash: color-mix(in srgb, #B07D2B 11%, transparent);
+  --color-error-wash: color-mix(in srgb, #B6463F 11%, transparent);
+  --color-info-wash: color-mix(in srgb, #3A6B8A 11%, transparent);
+  --color-success-border: color-mix(in srgb, #3E7C4F 45%, transparent);
+  --color-warning-border: color-mix(in srgb, #B07D2B 45%, transparent);
+  --color-error-border: color-mix(in srgb, #B6463F 45%, transparent);
+  --color-info-border: color-mix(in srgb, #3A6B8A 45%, transparent);
+  --color-accent-wash: color-mix(in srgb, #D98984 12%, transparent);
+
+  --surface-0: #FFF8ED;
+  --surface-1: #FFFFFF;
+  --surface-2: #F8E7DC;
+  --surface-terminal: #1E1E1E;
+  --border-strong: #102D43;
+  --border-subtle: color-mix(in srgb, #102D43 30%, transparent);
+
+  --shadow-card: 4px 4px 0 #102D43;
+  --shadow-card-sm: 2px 2px 0 #102D43;
+  --shadow-pressed: 1px 1px 0 #102D43;
+  --glow-accent: 0 0 0 0 transparent;
+  --glow-success: 0 0 0 0 transparent;
+  --glow-warning: 0 0 0 0 transparent;
+  --glow-error: 0 0 0 0 transparent;
+  --glow-info: 0 0 0 0 transparent;
+  --radius-card: 4px;
+  --radius-control: 4px;
+  --border-w: 2px;
+  --press-shift: 2px;
+  --atmosphere: none;
+
+  /* Terminal/code syntax palette (terminal surfaces stay dark in BOTH themes) */
+  --code-text: #ECE6DA;
+  --code-keyword: #E8868B;
+  --code-string: #A8C97F;
+  --code-comment: #8A8390;
+  --code-function: #8FB8D8;
+  --code-number: #E0B566;
+  --code-punctuation: #B5ADBD;
+}
+
+/* Global resets */
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font-family-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Ensure all interactive elements show pointer cursor */
+button,
+a,
+[role="button"],
+[onclick],
+input[type="button"],
+input[type="submit"],
+input[type="reset"],
+select {
+  cursor: pointer;
+}
+
+.frosted-glass {
+  background-color: rgba(221, 225, 230, 0.7);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow:
+    0 8px 32px 0 rgba(0, 0, 0, 0.1),
+    inset 1px 1px 0px rgba(255, 255, 255, 0.6),
+    inset -1px -1px 0px rgba(0, 0, 0, 0.1);
+}
+
+.dark .frosted-glass {
+  background-color: rgba(47, 53, 66, 0.5);
+  border: 1px solid rgba(100, 100, 100, 0.3);
+  box-shadow: inset 1px 1px 0px rgba(255, 255, 255, 0.1), inset -1px -1px 0px rgba(0, 0, 0, 0.3);
+}
+
+/* Header wordmark: deep navy in light themes, warm parchment in dark themes */
+.header-wordmark {
+  filter: brightness(0) saturate(100%) invert(15%) sepia(47%) saturate(923%) hue-rotate(166deg) brightness(90%) contrast(94%);
+}
+
+.dark .header-wordmark {
+  filter: brightness(0) saturate(100%) invert(93%) sepia(8%) saturate(255%) hue-rotate(353deg) brightness(101%) contrast(92%);
+}
+
+.button-90s {
+  border: 1px solid black;
+  box-shadow: inset -1px -1px 0px #000000, inset 1px 1px 0px #ffffff, inset -2px -2px 0px #808080, inset 2px 2px 0px #dddddd;
+  transition: all 0.1s ease;
+  cursor: pointer;
+}
+
+.button-90s:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: inset -1px -1px 0px #000000, inset 1px 1px 0px #ffffff, inset -2px -2px 0px #808080, inset 2px 2px 0px #eeeeee;
+}
+
+.button-90s:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: inset 1px 1px 0px #000000, inset -1px -1px 0px #ffffff, inset 2px 2px 0px #808080, inset -2px -2px 0px #dddddd;
+}
+
+.button-90s:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.shadow-inner-90s {
+  box-shadow: inset 2px 2px 0px #ffffff, inset -2px -2px 0px #808080;
+}
+
+.shadow-soft {
+  box-shadow:
+    0 10px 15px -3px rgba(0, 0, 0, 0.1),
+    0 4px 6px -2px rgba(0, 0, 0, 0.05),
+    0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+
+/* Workflow execution animations */
+@keyframes blink {
+
+  from,
+  to {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-slow {
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+    border-width: 2px;
+  }
+
+  50% {
+    box-shadow: 0 0 0 10px rgba(59, 130, 246, 0);
+    border-width: 3px;
+  }
+}
+
+@keyframes float {
+
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+/* Organic breathing animation for thinking icons */
+@keyframes breathe {
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.6;
+    transform: scale(1.1);
+  }
+}
+
+/* Smooth fade-in-up for toast appearance */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-blink {
+  animation: blink 1s step-end infinite;
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-fadeInUp {
+  animation: fadeInUp 0.4s ease-out;
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  transform: translateZ(0);
+  /* Force hardware acceleration */
+  backface-visibility: hidden;
+  /* Prevent flickering */
+}
+
+/* Node ripple effect for anime.js animations */
+.node-ripple {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.4) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Scrollbar styles */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* React Flow overrides */
+/* .react-flow__node removed to avoid empty ruleset lint warning */
+
+.react-flow__handle {
+  background-color: var(--color-primary);
+  border: 2px solid white;
+}
+
+.react-flow__edge-path {
+  stroke: var(--color-primary);
+  stroke-width: 2;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--color-primary);
+}
+
+/* Material Symbols */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Textured Theme Styles - Light Pastel Mode */
+.textured-theme .frosted-glass {
+  background: linear-gradient(135deg, rgba(255, 248, 237, 0.95) 0%, rgba(246, 212, 207, 0.9) 100%);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid rgba(16, 45, 67, 0.4);
+  box-shadow:
+    4px 4px 0 rgba(16, 45, 67, 0.2),
+    inset 1px 1px 0px rgba(255, 255, 255, 0.8),
+    inset -1px -1px 0px rgba(217, 137, 132, 0.15);
+}
+
+.textured-theme.dark .frosted-glass {
+  background: linear-gradient(135deg, rgba(246, 212, 207, 0.9) 0%, rgba(255, 248, 237, 0.85) 100%);
+  border: 1px solid rgba(16, 45, 67, 0.35);
+  box-shadow:
+    4px 4px 0 rgba(16, 45, 67, 0.2),
+    inset 1px 1px 0px rgba(255, 255, 255, 0.9),
+    inset -1px -1px 0px rgba(217, 137, 132, 0.2);
+}
+
+/* Textured panels with subtle patterns - Light Pastel */
+.textured-theme aside,
+.textured-theme .bg-background-light,
+.textured-theme .bg-panel-dark,
+.textured-theme .bg-background-dark {
+  position: relative;
+  background: linear-gradient(180deg, rgba(255, 248, 237, 1) 0%, rgba(248, 231, 220, 1) 100%);
+}
+
+.textured-theme aside::before,
+.textured-theme .bg-background-light::before,
+.textured-theme .bg-panel-dark::before,
+.textured-theme .bg-background-dark::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image:
+    radial-gradient(circle at 20% 50%, rgba(246, 212, 207, 0.18) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(217, 137, 132, 0.08) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.textured-theme.dark aside::before,
+.textured-theme.dark .bg-background-light::before,
+.textured-theme.dark .bg-panel-dark::before,
+.textured-theme.dark .bg-background-dark::before {
+  background-image:
+    radial-gradient(circle at 20% 50%, rgba(246, 212, 207, 0.18) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(217, 137, 132, 0.08) 0%, transparent 50%);
+}
+
+/* Textured borders with gradient - Light Pastel */
+.textured-theme .border-gray-200,
+.textured-theme .border-border-dark {
+  border-color: rgba(16, 45, 67, 0.4);
+  border-image: linear-gradient(90deg,
+      rgba(16, 45, 67, 0.25) 0%,
+      rgba(217, 137, 132, 0.3) 50%,
+      rgba(16, 45, 67, 0.25) 100%) 1;
+}
+
+/* Enhanced buttons for textured theme - Light Pastel */
+/* Removed global button hover effect - was causing sweeping colors across all buttons */
+
+/* Pastel background for main containers */
+.textured-theme header {
+  backdrop-filter: blur(10px);
+  box-shadow: 0 3px 0 rgba(16, 45, 67, 0.36);
+}
+
+.textured-theme main {
+  background: linear-gradient(135deg, rgba(255, 248, 237, 1) 0%, rgba(248, 231, 220, 1) 100%) !important;
+}
+
+/* Override dark mode styles for textured theme */
+.textured-theme .bg-gray-50,
+.textured-theme .dark\:bg-background-dark,
+.textured-theme .dark\:bg-panel-dark {
+  background: linear-gradient(180deg, rgba(255, 248, 237, 1) 0%, rgba(248, 231, 220, 1) 100%) !important;
+}
+
+.textured-theme .bg-white,
+.textured-theme .dark\:bg-gray-800,
+.textured-theme .dark\:bg-gray-900 {
+  background: rgba(255, 252, 246, 0.82) !important;
+}
+
+.textured-theme .dark\:bg-gray-700 {
+  background: rgba(246, 212, 207, 0.82) !important;
+}
+
+.textured-theme .text-gray-900,
+.textured-theme .dark\:text-white {
+  color: #12283b !important;
+}
+
+.textured-theme .text-gray-600,
+.textured-theme .dark\:text-gray-400 {
+  color: #7b6870 !important;
+}
+
+.textured-theme .border-gray-200,
+.textured-theme .dark\:border-border-dark {
+  border-color: rgba(16, 45, 67, 0.32) !important;
+}
+
+/* Search input in textured theme */
+.textured-theme input[type="text"],
+.textured-theme input[type="search"] {
+  background: rgba(255, 252, 246, 0.78) !important;
+  border-color: rgba(16, 45, 67, 0.4) !important;
+  color: #12283b !important;
+}
+
+.textured-theme input::placeholder {
+  color: rgba(123, 104, 112, 0.74) !important;
+}
+
+/* Agent cards with better borders */
+.textured-theme .divide-y>* {
+  border-color: rgba(16, 45, 67, 0.25) !important;
+}
+
+.textured-theme button[style*="border-left"] {
+  border-left-color: rgba(217, 137, 132, 0.78) !important;
+  transition: all 0.15s ease;
+}
+
+.textured-theme button[style*="border-left"]:hover {
+  background: linear-gradient(90deg, rgba(217, 137, 132, 0.14) 0%, rgba(246, 212, 207, 0.22) 100%) !important;
+  border-left-color: rgba(217, 137, 132, 0.95) !important;
+}
+
+/* Header wordmark treatment for the peony palette */
+.textured-theme header img[alt="LangConfig"] {
+  filter: brightness(0) saturate(100%) invert(15%) sepia(47%) saturate(923%) hue-rotate(166deg) brightness(90%) contrast(94%);
+  transition: transform 0.15s ease;
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.textured-theme header img[alt="LangConfig"]:hover {
+  transform: translate(2px, 2px);
+}
+
+/* Slide-in animation for sidebars/panels */
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s ease-out;
+}
+
+/* Syntax highlighting for code blocks - Google-inspired */
+.code-snippet {
+  background: #ffffff !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 8px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  color: #1f2937 !important;
+}
+
+.code-snippet .token.comment,
+.code-snippet .token.prolog,
+.code-snippet .token.doctype,
+.code-snippet .token.cdata {
+  color: #34A853;
+  font-style: italic;
+}
+
+.code-snippet .token.punctuation {
+  color: #5f6368;
+}
+
+.code-snippet .token.property,
+.code-snippet .token.tag,
+.code-snippet .token.boolean,
+.code-snippet .token.constant,
+.code-snippet .token.symbol {
+  color: #EA4335;
+}
+
+.code-snippet .token.number {
+  color: #FBBC04;
+}
+
+.code-snippet .token.selector,
+.code-snippet .token.attr-name,
+.code-snippet .token.string,
+.code-snippet .token.char,
+.code-snippet .token.builtin {
+  color: #34A853;
+}
+
+.code-snippet .token.operator,
+.code-snippet .token.entity,
+.code-snippet .token.url,
+.code-snippet .token.variable {
+  color: #4285F4;
+}
+
+.code-snippet .token.atrule,
+.code-snippet .token.attr-value,
+.code-snippet .token.keyword {
+  color: #EA4335;
+  font-weight: 600;
+}
+
+.code-snippet .token.function,
+.code-snippet .token.class-name {
+  color: #4285F4;
+  font-weight: 600;
+}
+
+.code-snippet .token.regex,
+.code-snippet .token.important {
+  color: #EA4335;
+}
+
+.code-snippet .token.important,
+.code-snippet .token.bold {
+  font-weight: bold;
+}
+
+.code-snippet .token.italic {
+  font-style: italic;
+}
+
+/* Agent character image styling */
+.agent-character-img {
+  transition: all 0.3s ease;
+}
+
+.agent-character-img:hover {
+  transform: scale(1.02);
+  filter: drop-shadow(0 0 30px var(--color-primary)) brightness(1.1);
+}
+
+/* =============================================================================
+   Botanical Brutalism component layer — "living garden terminal"
+   One definition per pattern; theme-switched via the extended tokens, so the
+   same classname renders offset shadows in light themes and glows in dark.
+   ============================================================================= */
+
+/* --- Surfaces --- */
+.surface-card {
+  background: var(--surface-1);
+  border: var(--border-w) solid var(--border-strong);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.surface-card-sm {
+  background: var(--surface-1);
+  border: var(--border-w) solid var(--border-strong);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card-sm);
+}
+
+.surface-card-interactive {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  cursor: pointer;
+}
+
+.surface-card-interactive:hover {
+  transform: translate(var(--press-shift), var(--press-shift));
+  box-shadow: var(--shadow-pressed);
+}
+
+.surface-inset {
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+}
+
+/* --- Buttons --- */
+.btn-brutal {
+  font-family: var(--font-family-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  background: var(--surface-1);
+  color: var(--color-text-primary);
+  border: var(--border-w) solid var(--border-strong);
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow-card-sm);
+  padding: 0.45rem 0.9rem;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.btn-brutal:hover:not(:disabled) {
+  transform: translate(var(--press-shift), var(--press-shift));
+  box-shadow: var(--shadow-pressed);
+}
+
+.btn-brutal:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-brutal-primary {
+  background: var(--color-primary);
+  color: var(--color-on-accent);
+}
+
+.btn-ghost {
+  font-family: var(--font-family-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  background: transparent;
+  color: var(--color-text-muted);
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  padding: 0.3rem 0.55rem;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.btn-ghost:hover:not(:disabled) {
+  color: var(--color-text-primary);
+  border-color: var(--border-subtle);
+  background: var(--color-accent-wash);
+}
+
+/* --- Badges & status tones --- */
+.badge-mono {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-family: var(--font-family-mono);
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 0.14rem 0.5rem;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-2);
+  color: var(--color-text-muted);
+}
+
+.tone-success { color: var(--color-success); background: var(--color-success-wash); border-color: var(--color-success-border); }
+.tone-warning { color: var(--color-warning); background: var(--color-warning-wash); border-color: var(--color-warning-border); }
+.tone-error   { color: var(--color-error);   background: var(--color-error-wash);   border-color: var(--color-error-border); }
+.tone-info    { color: var(--color-info);    background: var(--color-info-wash);    border-color: var(--color-info-border); }
+.tone-accent  { color: var(--color-primary); background: var(--color-accent-wash);  border-color: color-mix(in srgb, var(--color-primary) 45%, transparent); }
+.tone-neutral { color: var(--color-text-muted); background: var(--surface-2); border-color: var(--border-subtle); }
+
+/* --- Terminal blocks (dark in every theme, per the design spec) --- */
+.terminal-block {
+  background: var(--surface-terminal);
+  border: var(--border-w) solid var(--border-strong);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card-sm);
+  font-family: var(--font-family-mono);
+  color: var(--code-text);
+  overflow: hidden;
+}
+
+.terminal-block-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.75rem;
+  background: rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--code-comment);
+}
+
+.terminal-dots {
+  display: inline-flex;
+  gap: 5px;
+}
+
+.terminal-dots span {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.terminal-dots span:nth-child(1) { background: #E8686A; }
+.terminal-dots span:nth-child(2) { background: #E5B765; }
+.terminal-dots span:nth-child(3) { background: #7CC082; }
+
+.terminal-prompt::before {
+  content: '\276F\00a0';
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
+/* --- Chat markdown prose (tables, inline code, lists) --- */
+.chat-markdown {
+  line-height: 1.65;
+  word-break: break-word;
+}
+
+.chat-markdown table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.6rem 0;
+  font-size: 0.85em;
+  border: var(--border-w) solid var(--border-strong);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+}
+
+.chat-markdown th {
+  background: var(--surface-2);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-mono);
+  font-size: 0.78em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border-bottom: var(--border-w) solid var(--border-strong);
+}
+
+.chat-markdown td {
+  padding: 0.45rem 0.75rem;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--color-text-primary);
+}
+
+.chat-markdown tr:last-child td {
+  border-bottom: none;
+}
+
+.chat-markdown tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--surface-2) 45%, transparent);
+}
+
+.chat-markdown :not(pre) > code {
+  font-family: var(--font-family-mono);
+  font-size: 0.85em;
+  background: var(--color-accent-wash);
+  color: var(--color-text-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  padding: 0.08em 0.35em;
+}
+
+.chat-markdown blockquote {
+  border-left: 3px solid var(--color-primary);
+  margin: 0.6rem 0;
+  padding: 0.2rem 0 0.2rem 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.chat-markdown a {
+  color: var(--color-info);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Markdown inside accent-filled user bubbles: keep on-accent contrast for
+   links, inline code, and blockquotes (theme link/code colors are tuned for
+   surface backgrounds, not the accent fill). */
+.chat-bubble-user .chat-markdown a {
+  color: inherit;
+  font-weight: 600;
+}
+
+.chat-bubble-user .chat-markdown :not(pre) > code {
+  background: color-mix(in srgb, var(--color-on-accent) 14%, transparent);
+  color: inherit;
+  border-color: color-mix(in srgb, var(--color-on-accent) 30%, transparent);
+}
+
+.chat-bubble-user .chat-markdown blockquote {
+  border-left-color: var(--color-on-accent);
+  color: inherit;
+}
+
+/* --- Code blocks: classed Prism tokens, colors from theme vars --- */
+.code-block {
+  background: var(--surface-terminal);
+  border-radius: 0 0 var(--radius-card) var(--radius-card);
+  font-family: var(--font-family-mono) !important;
+  font-size: 0.8em;
+  line-height: 1.6;
+  color: var(--code-text);
+}
+
+.code-block code,
+.code-block pre {
+  background: transparent !important;
+  color: var(--code-text);
+  font-family: var(--font-family-mono) !important;
+}
+
+.code-block .token.comment, .code-block .token.prolog, .code-block .token.doctype, .code-block .token.cdata { color: var(--code-comment); font-style: italic; }
+.code-block .token.punctuation { color: var(--code-punctuation); }
+.code-block .token.property, .code-block .token.tag, .code-block .token.boolean, .code-block .token.constant, .code-block .token.symbol { color: var(--code-keyword); }
+.code-block .token.number { color: var(--code-number); }
+.code-block .token.selector, .code-block .token.attr-name, .code-block .token.string, .code-block .token.char, .code-block .token.builtin { color: var(--code-string); }
+.code-block .token.operator, .code-block .token.entity, .code-block .token.url, .code-block .token.variable { color: var(--code-punctuation); }
+.code-block .token.atrule, .code-block .token.attr-value, .code-block .token.keyword { color: var(--code-keyword); font-weight: 600; }
+.code-block .token.function, .code-block .token.class-name { color: var(--code-function); font-weight: 600; }
+.code-block .token.regex, .code-block .token.important { color: var(--code-number); }
+
+/* --- Game-feel animations --- */
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: var(--shadow-card-sm); }
+  50% { box-shadow: var(--shadow-card-sm), var(--glow-accent); }
+}
+
+.streaming-pulse {
+  animation: glow-pulse 2.4s ease-in-out infinite;
+}
+
+/* Light themes have no glow — degrade to a gentle accent border pulse */
+@keyframes border-pulse {
+  0%, 100% { border-color: var(--border-strong); }
+  50% { border-color: var(--color-primary); }
+}
+
+html:not(.dark) .streaming-pulse {
+  animation: border-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes thinking-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.thinking-shimmer {
+  font-family: var(--font-family-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  background: linear-gradient(
+    90deg,
+    var(--color-text-muted) 0%,
+    var(--color-primary) 45%,
+    var(--color-text-muted) 90%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: thinking-shimmer 2.2s linear infinite;
+}
+
+.terminal-caret::after {
+  content: '\258E';
+  color: var(--color-primary);
+  animation: blink 1s step-end infinite;
+  -webkit-text-fill-color: var(--color-primary);
+}
+
+/* Avatar orb state auras */
+.orb-aura-thinking { animation: breathe 2.6s ease-in-out infinite; }
+.orb-aura-streaming { box-shadow: var(--glow-accent), var(--shadow-pressed); }
+.orb-aura-error { box-shadow: var(--glow-error), var(--shadow-pressed); border-color: var(--color-error) !important; }
+
+/* Energy bar (ProgressBar primitive) */
+.energy-bar-track {
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  background-image: repeating-linear-gradient(
+    90deg,
+    transparent 0 7px,
+    color-mix(in srgb, var(--border-strong) 6%, transparent) 7px 8px
+  );
+  overflow: hidden;
+}
+
+.energy-bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  transition: width 0.4s ease;
+  position: relative;
+}
+
+.energy-bar-fill.animated::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  background: inherit;
+  filter: brightness(1.4);
+  animation: breathe 1.4s ease-in-out infinite;
+}
+
+/* Dark-only chat atmosphere (vignette + grain), driven by --atmosphere */
+.chat-atmosphere {
+  position: relative;
+}
+
+.chat-atmosphere::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--atmosphere);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.dark .chat-atmosphere::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.02'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Textured peony theme companion rules for the new surfaces */
+.textured-theme .surface-card,
+.textured-theme .surface-card-sm {
+  background: rgba(255, 252, 246, 0.86);
+}
+
+.textured-theme .surface-inset {
+  background: rgba(248, 231, 220, 0.6);
+}

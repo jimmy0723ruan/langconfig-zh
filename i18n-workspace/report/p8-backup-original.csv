@@ -1,0 +1,8 @@
+id,name,description
+1,Deep Code Researcher,Advanced code analysis with file exploration and subagent delegation
+2,Deep Architect,System design and architecture planning with specialized subagents
+3,Deep Debugger,Systematic debugging with hypothesis tracking and root cause analysis
+4,Deep Document Writer,Long-form technical documentation with research and examples
+5,Deep Test Engineer,Comprehensive test generation with coverage analysis
+6,Hermes Platform Builder,LangConfig-native automation architect with approval-gated drafts and local Codex delegation
+7,Dynamic Workflow Agent,QuickJS eval-orchestrated DeepAgent for typed dynamic subagent fan-out and verification

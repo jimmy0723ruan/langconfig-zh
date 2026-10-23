@@ -1,0 +1,134 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+
+# Local config
+cleancontrol.json
+
+# Environment (CRITICAL - contains API keys and secrets)
+.env
+.env.local
+.env.*.local
+backend/.env
+backend/.env.local
+*.log
+
+# Build artifacts
+dist/
+build/
+src-tauri/target/
+
+# IDE
+.vscode/
+.DS_Store
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Export folder
+core-workflow-export/
+nul
+backend/nul
+
+# Python testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# IDE
+.idea/
+*.iml
+
+# Archive directory (local development docs)
+archive/
+
+# Temporary migration/fix scripts
+fix_*.py
+fix_*.ts
+migrate_*.ps1
+migrate_*.py
+update_*.ts
+update_*.py
+
+# Backend storage
+backend/backups/
+backend/storage/
+backend/data/codex_runs/
+
+# Personal AI assistant folders (not for public repo)
+.agent/
+.ai-plans/
+.claude/
+tasks/
+artifacts/
+
+# Temporary build/debug files
+build_errors*.txt
+tsc_output*.txt
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Tauri build outputs (distribution artifacts)
+src-tauri/*.dmg
+src-tauri/*.app
+src-tauri/*.exe
+src-tauri/*.AppImage
+src-tauri/*.deb
+src-tauri/*.msi
+src-tauri/release/
+src-tauri/bundle/
+
+# Code signing certificates (CRITICAL - never commit!)
+*.p12
+*.pfx
+*.key
+*.pem
+*.crt
+*.cert
+*.cer
+*.provisionprofile
+
+# OAuth and encryption (CRITICAL - never commit!)
+backend/encryption.key
+backend/*.key
+oauth_tokens.json
+credentials.json
+token.json
+client_secret*.json
+
+# Backend outputs
+/python-advisories.json
+/npm-advisories.json
+/test-results/
+/playwright-report/
+/backend/outputs/
+/backend/workspace/
+
+# Internal documentation (keep docs/ folder but ignore contents except setup guides)
+docs/*
+!docs/.gitkeep
+!docs/GOOGLE_OAUTH_SETUP.md
+!docs/SETUP.md
+!docs/DEPENDENCY_SECURITY.md
+langconfig/
+
+# Private/unreleased features (uncomment before pushing to public)
+# backend/core/codegen/generators/streamlit_configurable.py
+langconfig/
+
+# Public branch preparation and contributor guides
+!docs/QUALITY_GATES.md
+!docs/BRANCH_PLAN_2026-09.md
+!docs/BRANCH_INVENTORY_2026-09.json
+!docs/MIDDLEWARE_COMPATIBILITY.md
+!docs/RUNTIME_SCHEMA.md

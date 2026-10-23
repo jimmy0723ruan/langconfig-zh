@@ -1,0 +1,136 @@
+/**
+ * Copyright (c) 2025 Cade Russell (Ghost Peony)
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+/**
+ * Model Pricing Database
+ *
+ * Accurate per-token pricing for different AI models.
+ * Prices are per 1M tokens (input and output separately).
+ * Updated June 30, 2026.
+ *
+ * Sources:
+ * - OpenAI: https://openai.com/api/pricing/
+ * - Anthropic: https://www.anthropic.com/pricing
+ * - Google: https://ai.google.dev/pricing
+ */
+
+export interface ModelPricing {
+  input: number;  // Cost per 1M input tokens
+  output: number; // Cost per 1M output tokens
+}
+
+export const MODEL_PRICING: Record<string, ModelPricing> = {
+  // OpenAI GPT-5 frontier series
+  'gpt-5.5': { input: 5.00, output: 30.00 },
+  'gpt-5.4': { input: 2.50, output: 15.00 },
+  'gpt-5.4-mini': { input: 0.75, output: 4.50 },
+  'gpt-5.4-nano': { input: 0.20, output: 1.25 },
+
+  // Anthropic Claude current generation
+  'claude-fable-5': { input: 10.00, output: 50.00 },
+  // Intro pricing through 2026-08-31; standard pricing is $3/$15 per 1M afterward.
+  'claude-sonnet-5': { input: 2.00, output: 10.00 },
+  'claude-opus-4-8': { input: 5.00, output: 25.00 },
+  'claude-sonnet-4-6': { input: 3.00, output: 15.00 },
+  'claude-haiku-4-5': { input: 1.00, output: 5.00 },
+
+  // Google Gemini current generation
+  'gemini-3.1-pro-preview': { input: 2.00, output: 12.00 },
+  'gemini-2.5-flash': { input: 0.30, output: 2.50 },
+  'gemini-2.5-flash-lite': { input: 0.10, output: 0.40 },
+
+  // Legacy display/cost support - keep all entries so historical
+  // executions recorded against retired models still price correctly.
+  'o3': { input: 20.00, output: 80.00 },
+  'o3-mini': { input: 4.00, output: 16.00 },
+  'o4-mini': { input: 3.00, output: 12.00 },
+  'gpt-5.2': { input: 5.00, output: 20.00 },
+  'gpt-5.1': { input: 3.00, output: 12.00 },
+  'gpt-5': { input: 1.25, output: 10.00 },
+  'gpt-4o': { input: 2.50, output: 10.00 },
+  'gpt-4o-mini': { input: 0.15, output: 0.60 },
+  'claude-opus-4-5': { input: 5.00, output: 25.00 },
+  'claude-sonnet-4-5': { input: 3.00, output: 15.00 },
+  'claude-sonnet-4-5-20250929': { input: 3.00, output: 15.00 },
+  'gemini-3-pro-preview': { input: 2.00, output: 12.00 },
+  'gemini-2.0-flash': { input: 0.075, output: 0.30 },
+
+  // Default fallback
+  'default': { input: 1.00, output: 3.00 }
+};
+
+/**
+ * Get pricing for a specific model
+ */
+export function getModelPricing(modelName: string): ModelPricing {
+  // Normalize model name
+  const normalized = modelName.toLowerCase().trim();
+
+  // Try exact match first
+  if (MODEL_PRICING[normalized]) {
+    return MODEL_PRICING[normalized];
+  }
+
+  // Try partial matches
+  for (const [key, pricing] of Object.entries(MODEL_PRICING)) {
+    if (normalized.includes(key) || key.includes(normalized)) {
+      return pricing;
+    }
+  }
+
+  // Fallback to default
+  console.warn(`Unknown model "${modelName}", using default pricing`);
+  return MODEL_PRICING['default'];
+}
+
+/**
+ * Calculate cost for token usage
+ */
+export function calculateCost(
+  inputTokens: number,
+  outputTokens: number,
+  modelName: string
+): number {
+  const pricing = getModelPricing(modelName);
+
+  // Prices are per 1M tokens, so divide by 1,000,000
+  const inputCost = (inputTokens / 1_000_000) * pricing.input;
+  const outputCost = (outputTokens / 1_000_000) * pricing.output;
+
+  return inputCost + outputCost;
+}
+
+/**
+ * Format cost for display
+ */
+export function formatCost(cost: number): string {
+  if (cost < 0.001) {
+    return '< $0.001';
+  }
+
+  if (cost < 0.01) {
+    return `$${cost.toFixed(4)}`;
+  }
+
+  if (cost < 1.00) {
+    return `$${cost.toFixed(3)}`;
+  }
+
+  return `$${cost.toFixed(2)}`;
+}
+
+/**
+ * Calculate and format cost in one call
+ */
+export function calculateAndFormatCost(
+  inputTokens: number,
+  outputTokens: number,
+  modelName: string
+): string {
+  const cost = calculateCost(inputTokens, outputTokens, modelName);
+  return formatCost(cost);
+}

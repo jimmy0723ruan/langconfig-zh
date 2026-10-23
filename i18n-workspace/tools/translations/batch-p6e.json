@@ -1,0 +1,11 @@
+{
+  "Results": "结果",
+  "Files": "文件",
+  "ID: {{id}}": "ID：{{id}}",
+  "Priced for {{model}}": "计价模型 {{model}}",
+  "Hide Trigger History": "隐藏触发历史",
+  "Show Trigger History": "显示触发历史",
+  "...and {{count}} more": "…还有 {{count}} 个",
+  "Workflow Debug Info: {{name}}": "工作流调试信息：{{name}}",
+  "Model: {{model}}": "模型：{{model}}"
+}

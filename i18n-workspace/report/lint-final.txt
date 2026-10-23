@@ -1,0 +1,579 @@
+
+src\pages\SettingsPage.tsx
+  496: Error: Found hardcoded string: "or"
+  657: Error: Found hardcoded string: "check_circle"
+  690: Error: Found hardcoded string: "check_circle"
+  723: Error: Found hardcoded string: "check_circle"
+  797: Error: Found hardcoded string: "save"
+  821: Error: Found hardcoded string: "lock"
+  871: Error: Found hardcoded string: "info"
+  878: Error: Found hardcoded string: "used when creating new agents or workflows.
+                    Each agent node can override these settings individually. Agent-specific configurations always take precedence over these defaults."
+  953: Error: Found hardcoded string: "account_tree"
+  984: Error: Found hardcoded string: "open_in_new"
+  994: Error: Found hardcoded string: "open_in_new"
+  1004: Error: Found hardcoded string: "settings_suggest"
+  1014: Error: Found hardcoded string: "smart_toy"
+  1024: Error: Found hardcoded string: "description"
+  1034: Error: Found hardcoded string: "code"
+  1076: Error: Found hardcoded string: "code"
+  496: Warning: String concatenation: "Avoid splitting text across multiple translations (<Trans> or t()). Use a single translation with placeholders instead."
+  828: Warning: String concatenation: "Avoid splitting text across multiple translations (<Trans> or t()). Use a single translation with placeholders instead."
+
+src\pages\ProjectsPage.tsx
+  84: Error: Found hardcoded string: "add"
+  98: Error: Found hardcoded string: "folder_off"
+  113: Error: Found hardcoded string: "folder"
+  130: Error: Found hardcoded string: "indexed"
+
+src\pages\HomePage.tsx
+  230: Error: Found hardcoded string: "arrow_forward"
+
+src\pages\CommunityPage.tsx
+  16: Error: Found hardcoded string: "groups"
+  33: Error: Found hardcoded string: "article"
+  47: Error: Found hardcoded string: "share"
+  61: Error: Found hardcoded string: "forum"
+  75: Error: Found hardcoded string: "code"
+
+src\components\layout\ModernHeader.tsx
+  95: Error: Found hardcoded string: "account_tree"
+  111: Error: Found hardcoded string: "deployed_code"
+  127: Error: Found hardcoded string: "psychology"
+  143: Error: Found hardcoded string: "auto_awesome"
+  159: Error: Found hardcoded string: "folder"
+  175: Error: Found hardcoded string: "database"
+  191: Error: Found hardcoded string: "groups"
+  220: Error: Found hardcoded string: "folder_open"
+  272: Error: Found hardcoded string: "check"
+  291: Error: Found hardcoded string: "settings"
+
+src\components\ui\StorageMetrics.tsx
+  175: Error: Found hardcoded string: "GB"
+  249: Error: Found hardcoded string: "tokens"
+  253: Error: Found hardcoded string: "tokens"
+
+src\components\ui\CollapsibleSection.tsx
+  94: Error: Found hardcoded string: "error"
+
+src\components\common\FormattedOutputViewer.tsx
+  346: Error: Found hardcoded string: "words"
+
+src\components\common\ErrorBoundary.tsx
+  130: Error: Found hardcoded string: "We encountered an unexpected error. The error has been logged and
+              we're working to fix it."
+
+src\features\workflows\ui\ConflictDialog.tsx
+  109: Error: Found hardcoded string: "Reload the latest version from the server and discard your local changes.
+                    This is the safest option to avoid overwriting someone else's work."
+
+src\features\workflows\node-config\NodeConfigPanel.tsx
+  645: Error: Found hardcoded string: "radio_button_unchecked"
+  1012: Error: Found hardcoded string: "or"
+  1394: Error: Found hardcoded string: "characters"
+
+src\features\workflows\library\WorkflowLibraryView.tsx
+  390: Error: Found hardcoded string: "add"
+  401: Error: Found hardcoded string: "search"
+  475: Error: Found hardcoded string: "account_tree"
+  491: Error: Found hardcoded string: "search_off"
+  531: Error: Found hardcoded string: "close"
+  564: Error: Found hardcoded string: "content_copy"
+  579: Error: Found hardcoded string: "warning"
+
+src\features\workflows\library\WorkflowDetailedView.tsx
+  220: Error: Found hardcoded string: "download"
+  222: Error: Found hardcoded string: "expand_more"
+  235: Error: Found hardcoded string: "folder_zip"
+  249: Error: Found hardcoded string: "tune"
+  263: Error: Found hardcoded string: "share"
+  281: Error: Found hardcoded string: "code"
+  300: Error: Found hardcoded string: "content_copy"
+  307: Error: Found hardcoded string: "delete"
+  314: Error: Found hardcoded string: "edit"
+  328: Error: Found hardcoded string: "hub"
+  344: Error: Found hardcoded string: "cable"
+  360: Error: Found hardcoded string: "category"
+  381: Error: Found hardcoded string: "payments"
+  391: Error: Found hardcoded string: "expand_more"
+  439: Error: Found hardcoded string: "smart_toy"
+  451: Error: Found hardcoded string: "smart_toy"
+  464: Error: Found hardcoded string: "tokens"
+  480: Error: Found hardcoded string: "build"
+  487: Error: Found hardcoded string: "build"
+  490: Error: Found hardcoded string: "calls"
+  512: Error: Found hardcoded string: "analytics"
+  527: Error: Found hardcoded string: "visibility"
+  537: Error: Found hardcoded string: "expand_more"
+  603: Error: Found hardcoded string: "smart_toy"
+  645: Error: Found hardcoded string: "arrow_forward"
+  657: Error: Found hardcoded string: "account_tree"
+  676: Error: Found hardcoded string: "smart_toy"
+  686: Error: Found hardcoded string: "expand_more"
+  720: Error: Found hardcoded string: "smart_toy"
+  783: Error: Found hardcoded string: "memory"
+  789: Error: Found hardcoded string: "description"
+  811: Error: Found hardcoded string: "settings"
+  821: Error: Found hardcoded string: "expand_more"
+
+src\features\workflows\library\ProjectSection.tsx
+  72: Error: Found hardcoded string: "chevron_right"
+  84: Error: Found hardcoded string: "folder"
+  116: Error: Found hardcoded string: "workflow"
+  130: Error: Found hardcoded string: "account_tree"
+  157: Error: Found hardcoded string: "account_tree"
+  169: Error: Found hardcoded string: "node"
+
+src\features\workflows\library\LibraryContentPanel.tsx
+  53: Error: Found hardcoded string: "account_tree"
+  65: Error: Found hardcoded string: "folder"
+  77: Error: Found hardcoded string: "folder_open"
+  89: Error: Found hardcoded string: "school"
+  101: Error: Found hardcoded string: "workspace_premium"
+  114: Error: Found hardcoded string: "search"
+  166: Error: Found hardcoded string: "folder"
+  179: Error: Found hardcoded string: "arrow_forward"
+  190: Error: Found hardcoded string: "account_tree"
+  203: Error: Found hardcoded string: "arrow_forward"
+  214: Error: Found hardcoded string: "school"
+  227: Error: Found hardcoded string: "arrow_forward"
+  238: Error: Found hardcoded string: "workspace_premium"
+  251: Error: Found hardcoded string: "arrow_forward"
+  261: Error: Found hardcoded string: "folder"
+  282: Error: Found hardcoded string: "description"
+  297: Error: Found hardcoded string: "tips_and_updates"
+  317: Error: Found hardcoded string: "folder"
+  197: Warning: String concatenation: "Avoid splitting text across multiple translations (<Trans> or t()). Use a single translation with placeholders instead."
+  323: Warning: String concatenation: "Avoid splitting text across multiple translations (<Trans> or t()). Use a single translation with placeholders instead."
+
+src\features\workflows\library\LearnLangChainTab.tsx
+  40: Error: Found hardcoded string: "menu_book"
+  49: Error: Found hardcoded string: "open_in_new"
+  62: Error: Found hardcoded string: "psychology"
+  72: Error: Found hardcoded string: "expand_more"
+  91: Error: Found hardcoded string: "open_in_new"
+  130: Error: Found hardcoded string: "lightbulb"
+  147: Error: Found hardcoded string: "account_tree"
+  157: Error: Found hardcoded string: "expand_more"
+  176: Error: Found hardcoded string: "open_in_new"
+  215: Error: Found hardcoded string: "build"
+  225: Error: Found hardcoded string: "expand_more"
+  244: Error: Found hardcoded string: "open_in_new"
+  281: Error: Found hardcoded string: "database"
+  291: Error: Found hardcoded string: "expand_more"
+  310: Error: Found hardcoded string: "open_in_new"
+  336: Error: Found hardcoded string: "tips_and_updates"
+  353: Error: Found hardcoded string: "edit_note"
+  363: Error: Found hardcoded string: "expand_more"
+  382: Error: Found hardcoded string: "open_in_new"
+  423: Error: Found hardcoded string: "group_work"
+  433: Error: Found hardcoded string: "expand_more"
+  491: Error: Found hardcoded string: "psychology_alt"
+  501: Error: Found hardcoded string: "expand_more"
+  520: Error: Found hardcoded string: "open_in_new"
+  538: Error: Found hardcoded string: "tips_and_updates"
+  555: Error: Found hardcoded string: "layers"
+  565: Error: Found hardcoded string: "expand_more"
+  584: Error: Found hardcoded string: "open_in_new"
+  610: Error: Found hardcoded string: "shield"
+  620: Error: Found hardcoded string: "expand_more"
+  735: Error: Found hardcoded string: "info"
+  759: Error: Found hardcoded string: "open_in_new"
+  774: Error: Found hardcoded string: "account_tree"
+  784: Error: Found hardcoded string: "expand_more"
+  804: Error: Found hardcoded string: "open_in_new"
+  813: Error: Found hardcoded string: "open_in_new"
+  887: Error: Found hardcoded string: "arrow_forward"
+  896: Error: Found hardcoded string: "arrow_forward"
+  905: Error: Found hardcoded string: "arrow_forward"
+  82: Warning: String concatenation: "Avoid splitting text across multiple translations (<Trans> or t()). Use a single translation with placeholders instead."
+  101: Warning: String concatenation: "Avoid splitting text across multiple translations (<Trans> or t()). Use a single translation with placeholders instead."
+  112: Warning: String concatenation: "Avoid splitting text across multiple translations (<Trans> or t()). Use a single translation with placeholders instead."
+  132: Warning: String concatenation: "Avoid splitting text across multiple translations (<Trans> or t()). Use a single translation with placeholders instead."
+  167: Warning: String concatenation: "Avoid splitting text across multiple translations (<Trans> or t()). Use a single translation with placeholders instead."
+  235: Warning: String concatenation: "Avoid splitting text across multiple translations (<Trans> or t()). Use a single translation with placeholders instead."
+  267: Warning: String concatenation: "Avoid splitting text across multiple translations (<Trans> or t()). Use a single translation with placeholders instead."
+  301: Warning: String concatenation: "Avoid splitting text across multiple translations (<Trans> or t()). Use a single translation with placeholders instead."
+  330: Warning: String concatenation: "Avoid splitting text across multiple translations (<Trans> or t()). Use a single translation with placeholders instead."
+  373: Warning: String concatenation: "Avoid splitting text across multiple translations (<Trans> or t()). Use a single translation with placeholders instead."
+  459: Warning: String concatenation: "Avoid splitting text across multiple translations (<Trans> or t()). Use a single translation with placeholders instead."
+  478: Warning: String concatenation: "Avoid splitting text across multiple translations (<Trans> or t()). Use a single translation with placeholders instead."
+  511: Warning: String concatenation: "Avoid splitting text across multiple translations (<Trans> or t()). Use a single translation with placeholders instead."
+  575: Warning: String concatenation: "Avoid splitting text across multiple translations (<Trans> or t()). Use a single translation with placeholders instead."
+  630: Warning: String concatenation: "Avoid splitting text across multiple translations (<Trans> or t()). Use a single translation with placeholders instead."
+  665: Warning: String concatenation: "Avoid splitting text across multiple translations (<Trans> or t()). Use a single translation with placeholders instead."
+  729: Warning: String concatenation: "Avoid splitting text across multiple translations (<Trans> or t()). Use a single translation with placeholders instead."
+  741: Warning: String concatenation: "Avoid splitting text across multiple translations (<Trans> or t()). Use a single translation with placeholders instead."
+  794: Warning: String concatenation: "Avoid splitting text across multiple translations (<Trans> or t()). Use a single translation with placeholders instead."
+
+src\features\workflows\library\FilesLibraryTab.tsx
+  747: Error: Found hardcoded string: "by"
+  816: Error: Found hardcoded string: "file"
+  1011: Error: Found hardcoded string: "🤖"
+  1581: Error: Found hardcoded string: "file"
+
+src\features\workflows\library\EmptyStateContent.tsx
+  45: Error: Found hardcoded string: "account_tree"
+  60: Error: Found hardcoded string: "folder"
+  81: Error: Found hardcoded string: "description"
+  104: Error: Found hardcoded string: "add_circle"
+  122: Error: Found hardcoded string: "upload_file"
+  141: Error: Found hardcoded string: "settings"
+  170: Error: Found hardcoded string: "lightbulb"
+  181: Error: Found hardcoded string: "expand_more"
+  208: Error: Found hardcoded string: "smart_toy"
+  219: Error: Found hardcoded string: "expand_more"
+  242: Error: Found hardcoded string: "hub"
+  253: Error: Found hardcoded string: "expand_more"
+  278: Error: Found hardcoded string: "play_circle"
+  289: Error: Found hardcoded string: "expand_more"
+  313: Error: Found hardcoded string: "tips_and_updates"
+  187: Warning: String concatenation: "Avoid splitting text across multiple translations (<Trans> or t()). Use a single translation with placeholders instead."
+  263: Warning: String concatenation: "Avoid splitting text across multiple translations (<Trans> or t()). Use a single translation with placeholders instead."
+  264: Warning: String concatenation: "Avoid splitting text across multiple translations (<Trans> or t()). Use a single translation with placeholders instead."
+  265: Warning: String concatenation: "Avoid splitting text across multiple translations (<Trans> or t()). Use a single translation with placeholders instead."
+
+src\features\workflows\library\BestPracticesTab.tsx
+  41: Error: Found hardcoded string: "folder_managed"
+  51: Error: Found hardcoded string: "expand_more"
+  133: Error: Found hardcoded string: "description"
+  143: Error: Found hardcoded string: "expand_more"
+  242: Error: Found hardcoded string: "error"
+  252: Error: Found hardcoded string: "expand_more"
+  339: Error: Found hardcoded string: "science"
+  349: Error: Found hardcoded string: "expand_more"
+  467: Error: Found hardcoded string: "rocket_launch"
+  477: Error: Found hardcoded string: "expand_more"
+  627: Error: Found hardcoded string: "speed"
+  637: Error: Found hardcoded string: "expand_more"
+  677: Error: Found hardcoded string: "open_in_new"
+  752: Error: Found hardcoded string: "layers"
+  762: Error: Found hardcoded string: "expand_more"
+  812: Error: Found hardcoded string: "content_copy"
+  856: Error: Found hardcoded string: "lightbulb"
+  61: Warning: String concatenation: "Avoid splitting text across multiple translations (<Trans> or t()). Use a single translation with placeholders instead."
+  768: Warning: String concatenation: "Avoid splitting text across multiple translations (<Trans> or t()). Use a single translation with placeholders instead."
+
+src\features\workflows\spatial\SpatialWorkflowView.tsx
+  313: Error: Found hardcoded string: "Pick a node kind from the palette on the left, then click the
+              ground to place it."
+
+src\features\workflows\spatial\SpatialCanvas.tsx
+  50: Error: Found hardcoded string: "WebGL could not be initialized in this environment. The Studio (2D)
+            view remains fully functional."
+
+src\features\workflows\execution\SubagentPanel.tsx
+  330: Error: Found hardcoded string: "running"
+
+src\features\workflows\execution\RealtimeExecutionPanel.tsx
+  1452: Error: Found hardcoded string: "💬"
+  1465: Error: Found hardcoded string: "⏱️"
+  1481: Error: Found hardcoded string: "MB"
+  1639: Error: Found hardcoded string: "help"
+  1649: Error: Found hardcoded string: "play_circle"
+  1659: Error: Found hardcoded string: "psychology"
+  1970: Error: Found hardcoded string: "reply"
+  1653: Warning: String concatenation: "Avoid splitting text across multiple translations (<Trans> or t()). Use a single translation with placeholders instead."
+  1663: Warning: String concatenation: "Avoid splitting text across multiple translations (<Trans> or t()). Use a single translation with placeholders instead."
+
+src\features\workflows\execution\CustomEventCards.tsx
+  326: Error: Found hardcoded string: "lines"
+
+src\features\workflows\components\VersionTimeline.tsx
+  177: Error: Found hardcoded string: "version"
+
+src\features\workflows\components\FilePreviewRenderers.tsx
+  175: Error: Found hardcoded string: "null"
+  176: Error: Found hardcoded string: "undefined"
+
+src\features\workflows\components\FileMetadataPanel.tsx
+  288: Error: Found hardcoded string: "version"
+
+src\features\workflows\canvas\NodeThinkingOverlay.tsx
+  289: Error: Found hardcoded string: "characters"
+
+src\features\workflows\canvas\MinimizableMetricsPanel.tsx
+  80: Error: Found hardcoded string: "payments"
+  87: Error: Found hardcoded string: "tokens"
+  94: Error: Found hardcoded string: "expand_more"
+  113: Error: Found hardcoded string: "payments"
+  124: Error: Found hardcoded string: "expand_less"
+  194: Error: Found hardcoded string: "smart_toy"
+  203: Error: Found hardcoded string: "tokens"
+  231: Error: Found hardcoded string: "build"
+
+src\features\workflows\canvas\FloatingCostPanel.tsx
+  119: Error: Found hardcoded string: "payments"
+  198: Error: Found hardcoded string: "build"
+  229: Error: Found hardcoded string: "tokens"
+
+src\features\workflows\canvas\EmptyCanvasState.tsx
+  20: Error: Found hardcoded string: "account_tree"
+
+src\features\tools\ui\ToolTemplateGallery.tsx
+  183: Error: Found hardcoded string: "add_circle"
+  252: Error: Found hardcoded string: "search_off"
+
+src\features\tools\ui\ToolLibrary.tsx
+  194: Error: Found hardcoded string: "construction"
+
+src\features\tools\ui\ToolEquipSidebar.tsx
+  249: Error: Found hardcoded string: "more"
+
+src\features\tools\ui\CustomToolBuilder.tsx
+  645: Error: Found hardcoded string: "Use"
+  645: Error: Found hardcoded string: "{variable}"
+  645: Error: Found hardcoded string: "syntax for dynamic values"
+  674: Error: Found hardcoded string: "info"
+  809: Error: Found hardcoded string: "Your API credentials are encrypted and stored securely. Never share them publicly.
+                    For posting tweets, you need Read + Write permissions in your Twitter App settings."
+  860: Error: Found hardcoded string: "Use"
+  860: Error: Found hardcoded string: "{variable}"
+  860: Error: Found hardcoded string: "for dynamic path parameters"
+  960: Error: Found hardcoded string: "and"
+
+src\features\skills\ui\SkillLibrary.tsx
+  439: Error: Found hardcoded string: "• v"
+
+src\features\skills\ui\SkillCard.tsx
+  138: Error: Found hardcoded string: "uses"
+
+src\features\settings\ui\SettingsSidebar.tsx
+  44: Error: Found hardcoded string: "settings"
+
+src\features\settings\ui\ModelDefaultsSettings.tsx
+  111: Error: Found hardcoded string: "delete"
+  122: Error: Found hardcoded string: "add"
+
+src\features\settings\ui\LocalWorkspaceSettings.tsx
+  146: Error: Found hardcoded string: "warning"
+
+src\features\settings\ui\LocalModelsSettings.tsx
+  242: Error: Found hardcoded string: "travel_explore"
+  263: Error: Found hardcoded string: "model"
+  300: Error: Found hardcoded string: "add"
+  400: Error: Found hardcoded string: "edit"
+  408: Error: Found hardcoded string: "delete"
+  429: Error: Found hardcoded string: "ollama.ai"
+  441: Error: Found hardcoded string: "lmstudio.ai"
+  606: Error: Found hardcoded string: "close"
+  837: Error: Found hardcoded string: "close"
+
+src\features\memory\ui\MemoryView.tsx
+  182: Error: Found hardcoded string: "API.
+                Stored items persist across workflow executions."
+  384: Error: Found hardcoded string: "RAG (Retrieval-Augmented Generation) allows agents to search your project documents and codebase.
+                The Knowledge page is the central hub for managing project-specific knowledge."
+  432: Error: Found hardcoded string: "Use the Knowledge tab to upload documents, manage embeddings, and configure RAG settings.
+                        This Memory view provides quick access to memory-related settings within your workflow."
+
+src\features\knowledge\ui\SearchMetricsDisplay.tsx
+  98: Error: Found hardcoded string: "vs"
+  117: Error: Found hardcoded string: "vs"
+  136: Error: Found hardcoded string: "vs"
+  155: Error: Found hardcoded string: "vs"
+  191: Error: Found hardcoded string: "%)"
+  206: Error: Found hardcoded string: "% ("
+  206: Error: Found hardcoded string: "%)"
+
+src\features\knowledge\ui\SearchHistoryLog.tsx
+  199: Error: Found hardcoded string: "ms"
+
+src\features\knowledge\ui\KnowledgeBaseView.tsx
+  493: Error: Found hardcoded string: "text-embedding-3-large"
+  494: Error: Found hardcoded string: "text-embedding-3-small"
+  495: Error: Found hardcoded string: "text-embedding-ada-002"
+  652: Error: Found hardcoded string: "chunks"
+  882: Error: Found hardcoded string: "of"
+  889: Error: Found hardcoded string: "tokens"
+  895: Error: Found hardcoded string: "chars"
+
+src\features\knowledge\ui\DocumentsView.tsx
+  107: Error: Found hardcoded string: "folder_open"
+  124: Error: Found hardcoded string: "upload_file"
+  138: Error: Found hardcoded string: "progress_activity"
+  152: Error: Found hardcoded string: "description"
+  166: Error: Found hardcoded string: "description"
+  183: Error: Found hardcoded string: "chunks"
+  191: Error: Found hardcoded string: "delete"
+
+src\features\hermes\ui\HermesWorkspace.tsx
+  366: Error: Found hardcoded string: "Hermes, Platform Brain, and the local Codex harness can mutate local data or launch a locally authenticated CLI.
+            Enable them only for a loopback-only development backend."
+  384: Error: Found hardcoded string: "Hermes"
+  413: Error: Found hardcoded string: "sources"
+  474: Error: Found hardcoded string: "recent"
+  373: Warning: String concatenation: "Avoid splitting text across multiple translations (<Trans> or t()). Use a single translation with placeholders instead."
+
+src\features\chat\ui\SessionSelector.tsx
+  180: Error: Found hardcoded string: "check"
+
+src\features\chat\ui\SessionDocumentsPanel.tsx
+  97: Error: Found hardcoded string: "Session Documents ("
+  127: Error: Found hardcoded string: "KB"
+  141: Error: Found hardcoded string: "chunks"
+
+src\features\chat\ui\MetricsPanel.tsx
+  163: Error: Found hardcoded string: "Tool Calls ("
+  212: Error: Found hardcoded string: "Subagent Activity ("
+
+src\features\chat\ui\AgentSelector.tsx
+  305: Error: Found hardcoded string: "check"
+
+src\features\agents\ui\ToolsModeView.tsx
+  88: Error: Found hardcoded string: "Build custom tools or start from a template. Native tools (file read, web search, etc.)
+            are always available to agents and don't need to be configured here."
+  123: Error: Found hardcoded string: "extension"
+  140: Error: Found hardcoded string: "extension"
+  168: Error: Found hardcoded string: "available"
+
+src\features\agents\ui\SkillBuilderModal.tsx
+  292: Error: Found hardcoded string: "## Instructions
+
+
+
+Describe the expertise and behavior this skill should provide...
+
+
+
+## Guidelines
+
+- Be specific about what the agent should do
+
+- Include examples if helpful
+
+- Define output format expectations"
+
+src\features\agents\ui\ModernAgentLibrary.tsx
+  614: Error: Found hardcoded string: "search"
+  734: Error: Found hardcoded string: "auto_awesome"
+  775: Error: Found hardcoded string: "nodes"
+  855: Error: Found hardcoded string: "search_off"
+  980: Error: Found hardcoded string: "check_circle"
+  986: Error: Found hardcoded string: "check_circle"
+  992: Error: Found hardcoded string: "check_circle"
+  998: Error: Found hardcoded string: "warning"
+  1073: Error: Found hardcoded string: "account_tree"
+  1080: Error: Found hardcoded string: "arrow_forward"
+  1113: Error: Found hardcoded string: "smart_toy"
+  1119: Error: Found hardcoded string: "tools"
+  1130: Error: Found hardcoded string: "science"
+  1182: Error: Found hardcoded string: "terminal"
+  1210: Error: Found hardcoded string: "psychology"
+
+src\features\agents\ui\DeepAgentBuilder.tsx
+  1275: Error: Found hardcoded string: "10-15:"
+  1276: Error: Found hardcoded string: "20-30:"
+  1277: Error: Found hardcoded string: "40+:"
+  1990: Error: Found hardcoded string: "selected"
+
+src\features\agents\ui\AgentLoadouts.tsx
+  376: Error: Found hardcoded string: "psychology"
+  466: Error: Found hardcoded string: "uses"
+  552: Error: Found hardcoded string: "GPT-5.5"
+  553: Error: Found hardcoded string: "GPT-5.4"
+  554: Error: Found hardcoded string: "GPT-5.4 Mini"
+  555: Error: Found hardcoded string: "GPT-5.4 Nano"
+  647: Error: Found hardcoded string: "and"
+  784: Error: Found hardcoded string: "characters"
+  1085: Error: Found hardcoded string: "GPT-5.5"
+  1086: Error: Found hardcoded string: "GPT-5.4"
+  1087: Error: Found hardcoded string: "GPT-5.4 Mini"
+  1088: Error: Found hardcoded string: "GPT-5.4 Nano"
+  1414: Error: Found hardcoded string: "build"
+  1729: Error: Found hardcoded string: "Use"
+  1729: Error: Found hardcoded string: "{variable}"
+  1729: Error: Found hardcoded string: "for dynamic parameters"
+  3026: Error: Found hardcoded string: "smart_toy"
+  3088: Error: Found hardcoded string: "psychology"
+  3156: Error: Found hardcoded string: "psychology"
+  3302: Error: Found hardcoded string: "code"
+  3359: Error: Found hardcoded string: "search"
+  3416: Error: Found hardcoded string: "terminal"
+  3508: Error: Found hardcoded string: "api"
+  3565: Error: Found hardcoded string: "notifications"
+  3625: Error: Found hardcoded string: "storage"
+  3785: Error: Found hardcoded string: "build"
+  3938: Error: Found hardcoded string: "uses"
+  4002: Error: Found hardcoded string: "terminal"
+  4033: Error: Found hardcoded string: "psychology"
+
+src\features\workflows\spatial\builder\SpatialToolbar.tsx
+  125: Error: Found hardcoded string: "stop"
+  143: Error: Found hardcoded string: "play_arrow"
+  156: Error: Found hardcoded string: "history"
+  161: Error: Found hardcoded string: "fit_screen"
+  166: Error: Found hardcoded string: "design_services"
+  167: Error: Found hardcoded string: "2D"
+
+src\features\workflows\spatial\hud\WorkflowPicker.tsx
+  44: Error: Found hardcoded string: "deployed_code"
+  96: Error: Found hardcoded string: "check"
+
+src\features\workflows\spatial\hud\RunDialog.tsx
+  113: Error: Found hardcoded string: "play_arrow"
+
+src\features\workflows\spatial\hud\ReplayTimeline.tsx
+  173: Error: Found hardcoded string: "close"
+
+src\features\workflows\spatial\hud\ExecutionHUD.tsx
+  133: Error: Found hardcoded string: "my_location"
+  143: Error: Found hardcoded string: "tok"
+  148: Error: Found hardcoded string: "sub"
+
+src\features\workflows\canvas\toolbar\WorkflowToolbar.tsx
+  162: Error: Found hardcoded string: "expand_more"
+  190: Error: Found hardcoded string: "add"
+  408: Error: Found hardcoded string: "warning"
+
+src\features\workflows\canvas\toolbar\TabNavigation.tsx
+  82: Error: Found hardcoded string: "warning"
+
+src\features\workflows\canvas\results\WorkflowResults.tsx
+  361: Error: Found hardcoded string: "chat_bubble"
+  386: Error: Found hardcoded string: "error"
+  417: Error: Found hardcoded string: "reply"
+  514: Error: Found hardcoded string: "compare_arrows"
+  589: Error: Found hardcoded string: "description"
+  617: Error: Found hardcoded string: "reply"
+  691: Error: Found hardcoded string: "reply"
+  705: Error: Found hardcoded string: "arrow_forward"
+  782: Error: Found hardcoded string: "build"
+
+src\features\workflows\canvas\results\FilesTab.tsx
+  376: Error: Found hardcoded string: "error"
+  420: Error: Found hardcoded string: "folder_open"
+  866: Error: Found hardcoded string: "download"
+
+src\features\workflows\canvas\nodes\CustomNode.tsx
+  213: Error: Found hardcoded string: "construction"
+  496: Error: Found hardcoded string: "expand_more"
+
+src\features\workflows\canvas\panels\TotalCostPanel.tsx
+  69: Error: Found hardcoded string: "tokens"
+
+src\features\workflows\canvas\panels\CanvasControlPanel.tsx
+  169: Error: Found hardcoded string: "bug_report"
+
+src\features\workflows\canvas\dialogs\TriggerDialog.tsx
+  698: Error: Found hardcoded string: "from"
+
+src\features\workflows\canvas\dialogs\ScheduleDialog.tsx
+  471: Error: Found hardcoded string: "{date}"
+  471: Error: Found hardcoded string: "{datetime}"
+  471: Error: Found hardcoded string: "{week}"
+  471: Error: Found hardcoded string: "{month}"
+
+src\features\workflows\canvas\dialogs\PresentationDialog.tsx
+  184: Error: Found hardcoded string: "item"
+  184: Error: Found hardcoded string: "selected"
+
+src\features\workflows\canvas\dialogs\ExecutionConfigDialog.tsx
+  121: Error: Found hardcoded string: "reply"
+  173: Warning: String concatenation: "Avoid splitting text across multiple translations (<Trans> or t()). Use a single translation with placeholders instead."
+
+src\features\workflows\canvas\chat\WorkflowChatTab.tsx
+  905: Error: Found hardcoded string: "clear"
+
+src\features\knowledge\ui\repositories\RepositoriesPanel.tsx
+  376: Error: Found hardcoded string: "files"

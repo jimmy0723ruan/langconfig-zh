@@ -1,0 +1,823 @@
+# Copyright (c) 2025 Cade Russell (Ghost Peony)
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+"""
+Pre-configured DeepAgent Templates for LangConfig.
+
+These are specialized DeepAgent templates that leverage the full capabilities
+of the DeepAgents framework including planning, subagents, and context management.
+"""
+
+from typing import List
+from models.deep_agent import (
+    DeepAgentConfig,
+    InterpreterConfig,
+    SubAgentConfig,
+    MiddlewareConfig,
+    BackendConfig,
+    GuardrailsConfig,
+    create_default_middleware_config,
+    create_default_backend_config,
+    create_default_guardrails_config
+)
+from models.enums import SubAgentType, MiddlewareType
+
+
+# =============================================================================
+# DeepAgent Template Configurations
+# =============================================================================
+
+def create_deep_code_researcher() -> DeepAgentConfig:
+    """
+    DEEP_CODE_RESEARCHER: Advanced code analysis with file exploration.
+
+    Use Case: Deep code analysis, architectural reviews, security audits
+    Features:
+    - Filesystem access for code exploration
+    - Planning with task breakdown
+    - Subagent delegation for specialized analysis
+    """
+    return DeepAgentConfig(
+        model="claude-sonnet-4-6",
+        temperature=0.3,  # Lower for precise analysis
+        system_prompt="""You are an expert code researcher with deep analytical capabilities.
+
+Your expertise includes:
+- Code architecture analysis and design pattern identification
+- Security vulnerability detection
+- Performance optimization recommendations
+- Technical debt assessment
+
+Use your planning tools to break down complex analysis tasks.
+Spawn subagents for specialized deep-dives (security, performance, etc.).
+Use filesystem tools to explore codebases systematically.
+
+Always provide:
+1. Executive summary
+2. Detailed findings with code references
+3. Prioritized recommendations
+4. Action items
+""",
+        native_tools=["ls", "read_file", "write_file", "edit_file", "glob", "grep", "web_search"],
+        cli_tools=[],
+        use_deepagents=True,
+        middleware=[
+            MiddlewareConfig(
+                type=MiddlewareType.TODO_LIST,
+                enabled=True,
+                config={"auto_track": True}
+            ),
+            MiddlewareConfig(
+                type=MiddlewareType.FILESYSTEM,
+                enabled=True,
+                config={
+                    "auto_eviction": True,
+                    "eviction_threshold_bytes": 500000  # 500KB
+                }
+            ),
+            MiddlewareConfig(
+                type=MiddlewareType.SUBAGENT,
+                enabled=True,
+                config={"max_depth": 2, "max_concurrent": 3}
+            )
+        ],
+        subagents=[
+            SubAgentConfig(
+                name="security_analyst",
+                description="Specialized in security vulnerability analysis",
+                system_prompt="You are a security expert. Analyze code for vulnerabilities, injection risks, and security best practices.",
+                tools=["ls", "read_file", "write_file", "edit_file", "glob", "grep", "web_search"],
+                middleware=["filesystem"]
+            ),
+            SubAgentConfig(
+                name="performance_analyst",
+                description="Specialized in performance optimization",
+                system_prompt="You are a performance expert. Identify bottlenecks, inefficient algorithms, and optimization opportunities.",
+                tools=["ls", "read_file", "write_file", "edit_file", "glob", "grep", "web_search"],
+                middleware=["filesystem"]
+            )
+        ],
+        backend=create_default_backend_config(),
+        guardrails=create_default_guardrails_config()
+    )
+
+
+def create_deep_architect() -> DeepAgentConfig:
+    """
+    DEEP_ARCHITECT: System design with subagent delegation.
+
+    Use Case: Architectural planning, system design, technical specifications
+    Features:
+    - Planning with multi-phase approach
+    - Subagent delegation for different architectural aspects
+    - Documentation generation
+    """
+    return DeepAgentConfig(
+        model="claude-sonnet-4-6",
+        temperature=0.7,
+        system_prompt="""You are a senior software architect with expertise in system design.
+
+Your responsibilities:
+- Design scalable, maintainable architectures
+- Create technical specifications
+- Evaluate trade-offs between different approaches
+- Document architectural decisions (ADRs)
+
+Use planning tools to structure your design process:
+1. Requirements analysis
+2. Architecture proposal
+3. Trade-off evaluation
+4. Implementation roadmap
+
+Delegate to specialized subagents for:
+- Database schema design
+- API design
+- Infrastructure planning
+- Security architecture
+
+Always provide visual diagrams (mermaid syntax) and clear documentation.
+""",
+        native_tools=["ls", "read_file", "write_file", "edit_file", "glob", "grep", "web_search"],
+        cli_tools=[],
+        use_deepagents=True,
+        middleware=create_default_middleware_config(),
+        subagents=[
+            SubAgentConfig(
+                name="database_architect",
+                description="Database schema and optimization expert",
+                system_prompt="You design database schemas, optimize queries, and plan data models.",
+                tools=["ls", "read_file", "write_file", "edit_file", "glob", "grep", "web_search"],
+                middleware=["filesystem"]
+            ),
+            SubAgentConfig(
+                name="api_designer",
+                description="API design and REST/GraphQL expert",
+                system_prompt="You design APIs following best practices, RESTful principles, and modern patterns.",
+                tools=["ls", "read_file", "write_file", "edit_file", "glob", "grep", "web_search"],
+                middleware=["filesystem"]
+            ),
+            SubAgentConfig(
+                name="infrastructure_planner",
+                description="Cloud infrastructure and DevOps expert",
+                system_prompt="You plan cloud infrastructure, CI/CD pipelines, and deployment strategies.",
+                tools=["ls", "read_file", "write_file", "edit_file", "glob", "grep", "web_search"],
+                middleware=["filesystem"]
+            )
+        ],
+        backend=create_default_backend_config(),
+        guardrails=create_default_guardrails_config()
+    )
+
+
+def create_deep_debugger() -> DeepAgentConfig:
+    """
+    DEEP_DEBUGGER: Multi-step debugging with systematic investigation.
+
+    Use Case: Complex bug investigation, root cause analysis
+    Features:
+    - Systematic debugging workflow
+    - Tool spawning for testing
+    - Hypothesis tracking
+    """
+    return DeepAgentConfig(
+        model="claude-sonnet-4-6",
+        temperature=0.2,  # Very precise for debugging
+        system_prompt="""You are an expert debugger with systematic investigation skills.
+
+Your debugging process:
+1. Understand the problem and gather context
+2. Form hypotheses about potential causes
+3. Test each hypothesis systematically
+4. Isolate the root cause
+5. Propose and validate fixes
+
+Use planning tools to track:
+- List of hypotheses
+- Tests performed
+- Findings from each test
+- Progress toward root cause
+
+Use filesystem tools to:
+- Read relevant code files
+- Check logs and error messages
+- Analyze stack traces
+- Review recent changes
+
+Always provide:
+- Clear problem statement
+- Root cause analysis
+- Proposed fix with explanation
+- Prevention recommendations
+""",
+        native_tools=["ls", "read_file", "write_file", "edit_file", "glob", "grep", "web_search"],
+        cli_tools=[],
+        use_deepagents=True,
+        middleware=create_default_middleware_config(),
+        subagents=[
+            SubAgentConfig(
+                name="test_runner",
+                description="Specialized in running and analyzing tests",
+                system_prompt="You run tests, analyze failures, and provide detailed test reports.",
+                tools=["ls", "read_file", "write_file", "edit_file", "glob", "grep", "web_search"],
+                middleware=["filesystem"]
+            )
+        ],
+        backend=create_default_backend_config(),
+        guardrails=GuardrailsConfig(
+            interrupts={},
+            token_limits={
+                "max_total_tokens": 150000,  # Higher for deep debugging
+                "eviction_threshold": 100000,
+                "summarization_threshold": 70000
+            },
+            enable_auto_eviction=True,
+            enable_summarization=True
+        )
+    )
+
+
+def create_deep_document_writer() -> DeepAgentConfig:
+    """
+    DEEP_DOCUMENT_WRITER: Long-form documentation with research.
+
+    Use Case: Technical documentation, user guides, API docs
+    Features:
+    - Research-driven writing
+    - Multi-section planning
+    - Context management for long documents
+    """
+    return DeepAgentConfig(
+        model="claude-sonnet-4-6",
+        temperature=0.7,
+        system_prompt="""You are a technical writer specializing in clear, comprehensive documentation.
+
+Your writing process:
+1. Research the topic thoroughly
+2. Create a detailed outline
+3. Write each section with clarity
+4. Include examples and code snippets
+5. Review and refine
+
+Use planning tools to:
+- Break documentation into sections
+- Track completion of each section
+- Manage research tasks
+
+Use filesystem tools to:
+- Read code for accurate examples
+- Extract API signatures
+- Review existing documentation
+
+Writing principles:
+- Clear and concise language
+- Practical examples
+- Logical structure
+- Consistent formatting
+- Helpful diagrams (mermaid syntax)
+
+Target audiences:
+- Developers (technical depth)
+- Users (practical focus)
+- Stakeholders (high-level overview)
+""",
+        native_tools=["ls", "read_file", "write_file", "edit_file", "glob", "grep", "web_search"],
+        cli_tools=[],
+        use_deepagents=True,
+        middleware=create_default_middleware_config(),
+        subagents=[
+            SubAgentConfig(
+                name="code_example_generator",
+                description="Specialized in creating code examples",
+                system_prompt="You create clear, working code examples that demonstrate concepts effectively.",
+                tools=["ls", "read_file", "write_file", "edit_file", "glob", "grep", "web_search"],
+                middleware=["filesystem"]
+            ),
+            SubAgentConfig(
+                name="researcher",
+                description="Researches topics and gathers information",
+                system_prompt="You research topics thoroughly, gathering accurate information from code and documentation.",
+                tools=["ls", "read_file", "write_file", "edit_file", "glob", "grep", "web_search"],
+                middleware=["filesystem"]
+            )
+        ],
+        backend=create_default_backend_config(),
+        guardrails=GuardrailsConfig(
+            interrupts={},
+            token_limits={
+                "max_total_tokens": 200000,  # Higher for long documents
+                "eviction_threshold": 140000,
+                "summarization_threshold": 100000
+            },
+            enable_auto_eviction=True,
+            enable_summarization=True
+        )
+    )
+
+
+def create_deep_test_engineer() -> DeepAgentConfig:
+    """
+    DEEP_TEST_ENGINEER: Comprehensive test generation with coverage analysis.
+
+    Use Case: Test suite creation, test coverage improvement, QA
+    Features:
+    - Systematic test planning
+    - Multiple test type generation (unit, integration, e2e)
+    - Coverage analysis
+    """
+    return DeepAgentConfig(
+        model="claude-sonnet-4-6",
+        temperature=0.4,
+        system_prompt="""You are a test engineering expert focused on comprehensive test coverage.
+
+Your testing approach:
+1. Analyze code to understand functionality
+2. Identify test scenarios (happy path, edge cases, errors)
+3. Generate tests for multiple levels (unit, integration, e2e)
+4. Ensure good coverage of critical paths
+5. Include test data and fixtures
+
+Use planning tools to:
+- List all functions/classes to test
+- Track test scenarios for each
+- Monitor coverage progress
+
+Test types you create:
+- Unit tests: Isolated function/class testing
+- Integration tests: Component interaction testing
+- E2E tests: Full workflow testing
+- Property-based tests: Fuzz testing critical logic
+
+Testing best practices:
+- Clear test names describing what's tested
+- Arrange-Act-Assert pattern
+- Independent, repeatable tests
+- Good failure messages
+- Appropriate mocking/stubbing
+
+Use subagents for specialized testing:
+- Performance testing
+- Security testing
+- Accessibility testing
+""",
+        native_tools=["ls", "read_file", "write_file", "edit_file", "glob", "grep", "web_search"],
+        cli_tools=[],
+        use_deepagents=True,
+        middleware=create_default_middleware_config(),
+        subagents=[
+            SubAgentConfig(
+                name="unit_test_specialist",
+                description="Expert in unit test generation",
+                system_prompt="You create thorough unit tests with excellent edge case coverage.",
+                tools=["ls", "read_file", "write_file", "edit_file", "glob", "grep", "web_search"],
+                middleware=["filesystem"]
+            ),
+            SubAgentConfig(
+                name="integration_test_specialist",
+                description="Expert in integration test generation",
+                system_prompt="You create integration tests that verify component interactions.",
+                tools=["ls", "read_file", "write_file", "edit_file", "glob", "grep", "web_search"],
+                middleware=["filesystem"]
+            ),
+            SubAgentConfig(
+                name="e2e_test_specialist",
+                description="Expert in end-to-end test generation",
+                system_prompt="You create end-to-end tests that validate complete user workflows.",
+                tools=["ls", "read_file", "write_file", "edit_file", "glob", "grep", "web_search"],
+                middleware=["filesystem"]
+            )
+        ],
+        backend=create_default_backend_config(),
+        guardrails=create_default_guardrails_config()
+    )
+
+
+def create_hermes_platform_builder() -> DeepAgentConfig:
+    """
+    HERMES_PLATFORM_BUILDER: LangConfig-native automation architect.
+
+    Use Case: Build and validate LangConfig workflows, DeepAgents, tools,
+    schedules, and triggers while delegating bounded code tasks to Codex.
+    """
+    hermes_tools = [
+        "langconfig_search",
+        "langconfig_validate_workflow",
+        "langconfig_create_draft",
+        "langconfig_apply_draft",
+        "langconfig_export_workflow",
+        "codex_run_task",
+        "codex_get_status",
+        "web_search",
+        "web_fetch",
+        "get_current_time",
+    ]
+
+    return DeepAgentConfig(
+        model="claude-sonnet-4-6",
+        temperature=0.25,
+        system_prompt="""You are Hermes, LangConfig's platform-native automation architect.
+
+You understand LangConfig as an operating model: projects, visual workflow profiles,
+LangGraph execution, DeepAgent templates, native and custom tools, schedules,
+triggers, RAG context, execution traces, and approval-gated publishing.
+
+Your job is to turn user intent into safe LangConfig artifacts:
+- Search Platform Brain before drafting so your plans match the real platform.
+- Prefer no-code workflow/agent/tool drafts when they satisfy the request.
+- Use Codex only for bounded code-heavy work in isolated local workspaces.
+- Create Hermes drafts instead of publishing directly.
+- Validate every workflow draft before suggesting apply.
+- Require explicit approval for publishing, scheduling, destructive edits, or external side effects.
+- Explain trade-offs in terms of reliability, maintainability, and operational safety.
+
+When drafting workflows, use existing LangConfig payload shapes:
+WorkflowProfileCreate.configuration, optional blueprint, DeepAgentConfig,
+CustomTool configuration, schedule payloads, and trigger payloads.
+""",
+        native_tools=hermes_tools,
+        cli_tools=[],
+        use_deepagents=True,
+        interrupt_on={
+            "langconfig_apply_draft": True,
+            "codex_run_task": True,
+        },
+        middleware=[
+            MiddlewareConfig(
+                type=MiddlewareType.TODO_LIST,
+                enabled=True,
+                config={"auto_track": True}
+            ),
+            MiddlewareConfig(
+                type=MiddlewareType.SUBAGENT,
+                enabled=True,
+                config={"max_depth": 2, "max_concurrent": 4}
+            )
+        ],
+        subagents=[
+            SubAgentConfig(
+                name="platform_cartographer",
+                description="Maps LangConfig platform sources, routes, schemas, recipes, and prior runs before drafting.",
+                system_prompt="You are Platform Cartographer. Search Platform Brain and summarize the exact LangConfig sources, API contracts, recipes, and constraints relevant to the user's automation request.",
+                tools=["langconfig_search", "web_search", "web_fetch"],
+                middleware=[]
+            ),
+            SubAgentConfig(
+                name="automation_architect",
+                description="Designs LangConfig workflows, DeepAgents, tools, schedules, and triggers from user intent.",
+                system_prompt="You are Automation Architect. Convert intent into LangConfig-native workflow, DeepAgent, tool, schedule, and trigger drafts. Use existing shapes and keep apply actions approval-gated.",
+                tools=["langconfig_search", "langconfig_validate_workflow", "langconfig_create_draft"],
+                middleware=[]
+            ),
+            SubAgentConfig(
+                name="codex_engineer",
+                description="Delegates bounded code-heavy tasks to local Codex and summarizes run events/results.",
+                system_prompt="You are Codex Engineer. Check Codex status first, then use Codex only for bounded code-heavy work in isolated workspaces. Return run IDs and summarize outputs without claiming unpublished changes were applied.",
+                tools=["codex_get_status", "codex_run_task", "langconfig_create_draft"],
+                interrupt_on={"codex_run_task": True},
+                middleware=[]
+            ),
+            SubAgentConfig(
+                name="verification_agent",
+                description="Validates drafted artifacts and identifies missing approval, execution, export, or test steps.",
+                system_prompt="You are Verification Agent. Validate workflow drafts, check that artifacts are approval-gated, and produce concrete verification steps before apply or export.",
+                tools=["langconfig_search", "langconfig_validate_workflow", "langconfig_export_workflow"],
+                middleware=[]
+            )
+        ],
+        backend=create_default_backend_config(),
+        guardrails=create_default_guardrails_config()
+    )
+
+
+def create_dynamic_workflow_agent() -> DeepAgentConfig:
+    """
+    DYNAMIC_WORKFLOW_AGENT: Eval-orchestrated DeepAgent for dynamic fan-out.
+
+    Use Case: Complex workflows where the agent benefits from writing a small
+    JavaScript orchestration program that dispatches typed subagent tasks.
+    """
+    return DeepAgentConfig(
+        model="claude-sonnet-4-6",
+        temperature=0.2,
+        system_prompt="""You are a dynamic workflow orchestrator.
+
+Use the eval tool for complex orchestration only when code-shaped control flow
+is clearer than serial tool calls. Inside eval, use task() to dispatch typed
+subagent work, batch parallel calls with Promise.all, compare results, and
+return a concise synthesis.
+
+Safety rules:
+- Keep eval programs small and auditable.
+- Prefer task() over direct host tool access.
+- Do not use PTC host tools unless explicitly allowlisted.
+- Ask for approval before eval when the runtime pauses for review.
+- Include verification passes for high-stakes or code-producing work.
+""",
+        native_tools=["ls", "read_file", "write_file", "edit_file", "glob", "grep", "web_search", "web_fetch"],
+        cli_tools=[],
+        use_deepagents=True,
+        middleware=create_default_middleware_config(),
+        interpreter=InterpreterConfig(
+            enabled=True,
+            mode="thread",
+            timeout_seconds=5.0,
+            memory_limit_bytes=64 * 1024 * 1024,
+            max_ptc_calls=256,
+            max_result_chars=4000,
+            capture_console=True,
+            dynamic_subagents=True,
+            ptc_tool_allowlist=[],
+            require_eval_approval=True
+        ),
+        interrupt_on={"eval": True},
+        subagents=[
+            SubAgentConfig(
+                name="analyzer",
+                description="Breaks a problem into findings with confidence.",
+                system_prompt="You are Analyzer. Return concrete findings, risks, and confidence. Avoid broad summaries.",
+                tools=["web_search", "web_fetch", "ls", "read_file", "glob", "grep"],
+                middleware=["filesystem"],
+                response_schema_name="DynamicAnalyzerResult",
+                response_schema={
+                    "type": "object",
+                    "properties": {
+                        "summary": {"type": "string"},
+                        "findings": {"type": "array", "items": {"type": "string"}},
+                        "confidence": {"type": "number"}
+                    },
+                    "required": ["summary", "findings"]
+                }
+            ),
+            SubAgentConfig(
+                name="verifier",
+                description="Checks another result for errors, missing evidence, and next tests.",
+                system_prompt="You are Verifier. Check claims against evidence, identify gaps, and return specific verification steps.",
+                tools=["web_search", "web_fetch", "ls", "read_file", "glob", "grep"],
+                middleware=["filesystem"],
+                response_schema_name="DynamicVerifierResult",
+                response_schema={
+                    "type": "object",
+                    "properties": {
+                        "passed": {"type": "boolean"},
+                        "issues": {"type": "array", "items": {"type": "string"}},
+                        "next_tests": {"type": "array", "items": {"type": "string"}}
+                    },
+                    "required": ["passed", "issues"]
+                }
+            ),
+            SubAgentConfig(
+                name="synthesizer",
+                description="Combines parallel subagent outputs into a final recommendation.",
+                system_prompt="You are Synthesizer. Merge typed results, call out disagreements, and produce a final recommendation with trade-offs.",
+                tools=[],
+                middleware=[],
+                response_schema_name="DynamicSynthesisResult",
+                response_schema={
+                    "type": "object",
+                    "properties": {
+                        "recommendation": {"type": "string"},
+                        "tradeoffs": {"type": "array", "items": {"type": "string"}},
+                        "open_questions": {"type": "array", "items": {"type": "string"}}
+                    },
+                    "required": ["recommendation"]
+                }
+            )
+        ],
+        backend=create_default_backend_config(),
+        guardrails=create_default_guardrails_config()
+    )
+
+
+# =============================================================================
+# Template Registry
+# =============================================================================
+
+class DeepAgentTemplateRegistry:
+    """Registry of pre-configured DeepAgent templates."""
+
+    _templates = {
+        "DEEP_CODE_RESEARCHER": {
+            "name": "深度代码研究员",
+            "description": "具备文件探索与子智能体委派的深度代码分析",
+            "category": "research",
+            "factory": create_deep_code_researcher,
+            "capabilities": [
+                "Code architecture analysis",
+                "Security vulnerability detection",
+                "Performance optimization",
+                "Technical debt assessment",
+                "Subagent delegation"
+            ],
+            "use_cases": [
+                "Codebase reviews",
+                "Security audits",
+                "Technical due diligence",
+                "Refactoring planning"
+            ]
+        },
+        "DEEP_ARCHITECT": {
+            "name": "深度架构师",
+            "description": "借助专业子智能体完成系统设计与架构规划",
+            "category": "architecture",
+            "factory": create_deep_architect,
+            "capabilities": [
+                "System design",
+                "Technical specifications",
+                "Architecture decision records",
+                "Database schema design",
+                "API design"
+            ],
+            "use_cases": [
+                "New system design",
+                "Architecture refactoring",
+                "Technical planning",
+                "ADR documentation"
+            ]
+        },
+        "DEEP_DEBUGGER": {
+            "name": "深度调试专家",
+            "description": "系统化调试：假设追踪与根因分析",
+            "category": "debugging",
+            "factory": create_deep_debugger,
+            "capabilities": [
+                "Root cause analysis",
+                "Hypothesis testing",
+                "Log analysis",
+                "Test execution",
+                "Fix validation"
+            ],
+            "use_cases": [
+                "Complex bug investigation",
+                "Production issue debugging",
+                "Test failure analysis",
+                "Performance debugging"
+            ]
+        },
+        "DEEP_DOCUMENT_WRITER": {
+            "name": "文档撰写专家",
+            "description": "长篇幅技术文档撰写，含调研与示例",
+            "category": "documentation",
+            "factory": create_deep_document_writer,
+            "capabilities": [
+                "Technical writing",
+                "Code example generation",
+                "API documentation",
+                "User guides",
+                "Tutorial creation"
+            ],
+            "use_cases": [
+                "Product documentation",
+                "API reference docs",
+                "Developer guides",
+                "Tutorial creation"
+            ]
+        },
+        "DEEP_TEST_ENGINEER": {
+            "name": "测试工程师",
+            "description": "全面的测试生成与覆盖率分析",
+            "category": "testing",
+            "factory": create_deep_test_engineer,
+            "capabilities": [
+                "Unit test generation",
+                "Integration test generation",
+                "E2E test generation",
+                "Test coverage analysis",
+                "Test data creation"
+            ],
+            "use_cases": [
+                "Test suite creation",
+                "Coverage improvement",
+                "Legacy code testing",
+                "Regression test generation"
+            ]
+        },
+        "HERMES_PLATFORM_BUILDER": {
+            "name": "Hermes 平台构建器",
+            "description": "LangConfig 原生自动化架构，支持审批把关的草稿与本地 Codex 委派",
+            "category": "automation",
+            "factory": create_hermes_platform_builder,
+            "capabilities": [
+                "Platform Brain search",
+                "Workflow and DeepAgent draft generation",
+                "Custom tool, schedule, and trigger drafting",
+                "Local Codex CLI delegation",
+                "Draft validation and approval-gated apply"
+            ],
+            "use_cases": [
+                "No-code workflow automation",
+                "DeepAgent design",
+                "LangChain/LangGraph workflow assembly",
+                "Codex-assisted implementation tasks",
+                "Safe automation publishing"
+            ]
+        },
+        "DYNAMIC_WORKFLOW_AGENT": {
+            "name": "动态工作流智能体",
+            "description": "由 QuickJS 求值编排的 DeepAgent，用于带类型的动态子智能体分发与校验",
+            "category": "automation",
+            "factory": create_dynamic_workflow_agent,
+            "capabilities": [
+                "Eval-gated JavaScript orchestration",
+                "Dynamic task() subagent fan-out",
+                "Typed subagent response schemas",
+                "Parallel analysis and verification passes",
+                "PTC disabled by default"
+            ],
+            "use_cases": [
+                "Parallel document or code review",
+                "Tournament-style answer comparison",
+                "Fan-out research and synthesis",
+                "Verifier loops for high-risk outputs",
+                "Dynamic LangGraph workflow prototyping"
+            ]
+        }
+    }
+
+    @classmethod
+    def get_template(cls, template_id: str) -> DeepAgentConfig:
+        """Get a DeepAgent configuration by template ID."""
+        if template_id not in cls._templates:
+            raise ValueError(f"Unknown template: {template_id}")
+
+        template = cls._templates[template_id]
+        return template["factory"]()
+
+    @classmethod
+    def list_all(cls) -> List[dict]:
+        """List all available templates with metadata."""
+        return [
+            {
+                "template_id": template_id,
+                "name": template["name"],
+                "description": template["description"],
+                "category": template["category"],
+                "capabilities": template["capabilities"],
+                "use_cases": template["use_cases"]
+            }
+            for template_id, template in cls._templates.items()
+        ]
+
+    @classmethod
+    def get_by_category(cls, category: str) -> List[dict]:
+        """Get templates filtered by category."""
+        return [
+            {
+                "template_id": template_id,
+                "name": template["name"],
+                "description": template["description"],
+                "category": template["category"]
+            }
+            for template_id, template in cls._templates.items()
+            if template["category"] == category
+        ]
+
+
+# =============================================================================
+# Database Seeding Function
+# =============================================================================
+
+async def seed_deepagent_templates(db):
+    """
+    Seed the database with pre-configured DeepAgent templates.
+
+    Call this during application startup to populate the template library.
+    """
+    from models.deep_agent import DeepAgentTemplate
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    for template_id, template_meta in DeepAgentTemplateRegistry._templates.items():
+        # Check if template already exists
+        existing = db.query(DeepAgentTemplate).filter(
+            DeepAgentTemplate.name == template_meta["name"]
+        ).first()
+
+        if existing:
+            logger.info(f"Template '{template_meta['name']}' already exists, skipping")
+            continue
+
+        # Create configuration
+        config = template_meta["factory"]()
+
+        # Create database record
+        template = DeepAgentTemplate(
+            name=template_meta["name"],
+            description=template_meta["description"],
+            category=template_meta["category"],
+            base_template_id=template_id,
+            config=config.dict(),
+            middleware_config=[m.dict() for m in config.middleware],
+            subagents_config=[s.dict() for s in config.subagents],
+            backend_config=config.backend.dict(),
+            guardrails_config=config.guardrails.dict(),
+            is_public=True,
+            version="1.0.0"
+        )
+
+        db.add(template)
+        logger.info(f"✓ Created template: {template_meta['name']}")
+
+    db.commit()
+    logger.info("DeepAgent templates seeded successfully")

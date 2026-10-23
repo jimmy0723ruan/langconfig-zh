@@ -1,0 +1,386 @@
+/**
+ * Copyright (c) 2025 Cade Russell (Ghost Peony)
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+export type WorkflowEventType =
+  | 'connected'
+  | 'on_chain_start'
+  | 'on_chain_end'
+  | 'on_tool_start'
+  | 'tool_start'
+  | 'tool_preparing'  // Early notification when tool call JSON is being streamed
+  | 'on_tool_end'
+  | 'on_chat_model_start'
+  | 'on_chat_model_stream'
+  | 'on_chat_model_end'
+  | 'on_llm_stream'
+  | 'token'
+  | 'on_agent_action'
+  | 'on_agent_finish'
+  | 'on_llm_end'
+  | 'checkpoint'
+  | 'status'
+  | 'node_status'
+  | 'complete'
+  | 'error'
+  | 'warning'
+  | 'ping'
+  | 'hitl_approved'
+  | 'hitl_rejected'
+  | 'recursion_limit_hit'
+  | 'node_started'
+  | 'node_completed'
+  | 'subagent_start'
+  | 'subagent_end'
+  | 'subagent_error'
+  | 'keepalive'
+  // Tool progress events (for long-running tools)
+  | 'tool_progress'
+  // Agent context event (for debugging)
+  | 'agent_context'
+  // Debug mode events (detailed tracing)
+  | 'debug_state_transition'
+  | 'debug_checkpoint'
+  | 'debug_graph_state'
+  // LangGraph-style custom streaming events
+  | 'custom_event';
+
+export interface BaseEvent {
+  event_id: number;
+  sequence_number: number;
+  idempotency_key: string;
+  timestamp: string;
+  channel: string;
+  type: WorkflowEventType;
+}
+
+export interface ChatModelStreamEvent extends BaseEvent {
+  type: 'on_chat_model_stream';
+  data: {
+    token: string;
+    content: string;
+    agent_label?: string;
+    node_id?: string;
+  };
+}
+
+export interface ToolStartEvent extends BaseEvent {
+  type: 'on_tool_start';
+  data: {
+    tool_name: string;
+    name?: string;
+    input: string | Record<string, any>;
+    input_preview?: string;
+    agent_label?: string;
+    node_id?: string;
+    run_id?: string;
+  };
+}
+
+export interface ToolEndEvent extends BaseEvent {
+  type: 'on_tool_end';
+  data: {
+    tool_name: string;
+    output: string | Record<string, any>;
+    agent_label?: string;
+    node_id?: string;
+    run_id?: string;
+    // Multimodal content from MCP tools
+    content_blocks?: Array<{
+      type: 'text' | 'image' | 'audio' | 'file' | 'resource';
+      [key: string]: any;
+    }>;
+    artifacts?: Array<{
+      type: 'text' | 'image' | 'audio' | 'file' | 'resource';
+      [key: string]: any;
+    }>;
+    has_multimodal?: boolean;
+  };
+}
+
+export interface ErrorEvent extends BaseEvent {
+  type: 'error';
+  data: {
+    error: string;
+    message?: string; // Some error events might use message instead of error
+    details?: string;
+    code?: string;
+    severity?: 'info' | 'warning' | 'error' | 'fatal';
+    recoverable?: boolean;
+    suggestion?: string;
+    tool_name?: string;
+    agent_label?: string;
+    node_id?: string;
+  };
+}
+
+// Node completion event with token usage and tool metrics
+export interface NodeStartedEvent extends BaseEvent {
+  type: 'node_started';
+  data: {
+    node_id: string;
+    agent_label: string;
+    agent_type?: string;
+    timestamp?: string;
+  };
+}
+
+export interface NodeCompletedEvent extends BaseEvent {
+  type: 'node_completed';
+  data: {
+    node_id: string;
+    agent_label: string;
+    model?: string;
+    timestamp?: string;
+    tokenCost?: {
+      promptTokens: number;
+      completionTokens: number;
+      totalTokens: number;
+      costString?: string;
+    };
+    toolCalls?: Array<{ name: string; id: string }>;
+    toolCallCount?: number;
+    toolResultCount?: number;
+    status?: 'success' | 'error';
+    error?: string;
+    duration_ms?: number;
+    output_preview?: string;
+  };
+}
+// Subagent start event for nested execution visualization
+export interface SubagentStartEvent extends BaseEvent {
+  type: 'subagent_start';
+  data: {
+    subagent_name: string;
+    subagent_run_id: string;
+    parent_agent_label?: string;
+    parent_run_id?: string;
+    input_preview?: string;
+    is_dynamic?: boolean;
+    eval_id?: string;
+    phase?: 'start' | 'complete' | 'error';
+    subagent_type?: string;
+    label?: string;
+    description?: string;
+    duration_ms?: number;
+  };
+}
+
+// Subagent end event for nested execution visualization
+export interface SubagentEndEvent extends BaseEvent {
+  type: 'subagent_end';
+  data: {
+    subagent_name: string;
+    subagent_run_id: string;
+    parent_agent_label?: string;
+    parent_run_id?: string;
+    output_preview?: string;
+    success: boolean;
+    is_dynamic?: boolean;
+    eval_id?: string;
+    phase?: 'start' | 'complete' | 'error';
+    subagent_type?: string;
+    duration_ms?: number;
+  };
+}
+
+// Subagent error event for nested execution visualization
+export interface SubagentErrorEvent extends BaseEvent {
+  type: 'subagent_error';
+  data: {
+    subagent_name: string;
+    subagent_run_id: string;
+    parent_agent_label?: string;
+    parent_run_id?: string;
+    error_type: string;
+    error: string;
+    success: false;
+    is_dynamic?: boolean;
+    eval_id?: string;
+    phase?: 'start' | 'complete' | 'error';
+    subagent_type?: string;
+    duration_ms?: number;
+  };
+}
+
+// Tool progress event for long-running operations
+export interface ToolProgressEvent extends BaseEvent {
+  type: 'tool_progress';
+  data: {
+    tool_name: string;
+    message: string;
+    progress_type: 'started' | 'update' | 'completed' | 'error';
+    agent_label?: string;
+    node_id?: string;
+    percent_complete?: number;
+    current_step?: number;
+    total_steps?: number;
+    task_id?: number;
+    project_id?: number;
+    metadata?: Record<string, any>;
+  };
+}
+
+// Debug mode: state transition event
+export interface DebugStateTransitionEvent extends BaseEvent {
+  type: 'debug_state_transition';
+  data: {
+    event_kind: string;
+    event_name: string;
+    tags: string[];
+    node_id?: string;
+    agent_label?: string;
+    run_id: string;
+    parent_run_id?: string;
+    state_keys: string[];
+  };
+}
+
+// Debug mode: checkpoint event
+export interface DebugCheckpointEvent extends BaseEvent {
+  type: 'debug_checkpoint';
+  data: {
+    checkpoint_id: string;
+    checkpoint_ns: string;
+    state_keys: string[];
+  };
+}
+
+// Debug mode: graph state event
+export interface DebugGraphStateEvent extends BaseEvent {
+  type: 'debug_graph_state';
+  data: {
+    node_name: string;
+    state_update: Record<string, any>;
+    state_keys_updated: string[];
+  };
+}
+
+// Agent context event for debugging (shows what agent has access to)
+export interface AgentContextEvent extends BaseEvent {
+  type: 'agent_context';
+  data: {
+    agent_label: string;
+    node_id: string;
+    timestamp: string;
+    system_prompt: {
+      preview: string;
+      length: number;
+    };
+    tools: string[];
+    attachments: Array<{
+      name: string;
+      mimeType: string;
+      hasData: boolean;
+      dataSize?: number;
+    }>;
+    messages: Array<{
+      type: string;
+      content: any;
+    }>;
+    model_config: {
+      model: string;
+      temperature: number;
+      max_tokens?: number;
+      enable_memory?: boolean;
+      enable_rag?: boolean;
+    };
+    metadata?: Record<string, any>;
+    task_id?: number;
+  };
+}
+
+// =============================================================================
+// LangGraph-Style Custom Streaming Event Types
+// =============================================================================
+
+// Progress bar event payload
+export interface ProgressEventData {
+  label: string;          // Progress label (e.g., "Downloading", "Processing")
+  value: number;          // Current value (0-100 for percentage, or absolute)
+  total?: number;         // Total value (default 100 for percentage)
+  message?: string;       // Additional status message
+}
+
+// Status badge event payload
+export interface StatusEventData {
+  label: string;          // Status label (e.g., "Analysis", "Validation")
+  status: 'pending' | 'running' | 'success' | 'error' | 'warning';
+  message?: string;       // Status message
+}
+
+// File operation event payload
+export interface FileStatusEventData {
+  filename: string;       // Name of the file
+  operation: 'reading' | 'writing' | 'created' | 'modified' | 'deleted' | 'error';
+  size_bytes?: number;    // File size in bytes
+  line_count?: number;    // Number of lines (for text files)
+  message?: string;       // Additional message
+}
+
+// Custom event payload union
+export type CustomEventPayload =
+  | ProgressEventData
+  | StatusEventData
+  | FileStatusEventData
+  | Record<string, any>;
+
+// Custom streaming event (LangGraph-style)
+export interface CustomEvent extends BaseEvent {
+  type: 'custom_event';
+  data: {
+    event_type: string;             // 'progress', 'status', 'file_status', or custom type
+    event_id?: string;              // For persistent events (can be updated in-place)
+    payload: CustomEventPayload;    // Event-specific data
+    tool_name?: string;             // Tool that emitted the event
+    agent_label?: string;           // Agent context
+    node_id?: string;               // Node context
+    timestamp: string;
+    task_id?: number;
+    project_id?: number;
+    metadata?: Record<string, any>;
+  };
+}
+
+// Generic event for other types
+export interface GenericEvent extends BaseEvent {
+  type: Exclude<WorkflowEventType,
+    | 'on_chat_model_stream'
+    | 'on_tool_start'
+    | 'on_tool_end'
+    | 'error'
+    | 'node_started'
+    | 'node_completed'
+    | 'subagent_start'
+    | 'subagent_end'
+    | 'subagent_error'
+    | 'tool_progress'
+    | 'agent_context'
+    | 'debug_state_transition'
+    | 'debug_checkpoint'
+    | 'debug_graph_state'
+    | 'custom_event'
+  >;
+  data: any;
+}
+
+export type WorkflowEvent =
+  | ChatModelStreamEvent
+  | ToolStartEvent
+  | ToolEndEvent
+  | ErrorEvent
+  | NodeStartedEvent
+  | NodeCompletedEvent
+  | SubagentStartEvent
+  | SubagentEndEvent
+  | SubagentErrorEvent
+  | ToolProgressEvent
+  | DebugStateTransitionEvent
+  | DebugCheckpointEvent
+  | DebugGraphStateEvent
+  | AgentContextEvent
+  | CustomEvent
+  | GenericEvent;

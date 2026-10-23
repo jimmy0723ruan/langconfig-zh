@@ -1,0 +1,216 @@
+#general
+(required)
++ Add Parameter
+, restart the backend, then refresh this page. See
+1 per 15 mins (per user)
+1,500 tweets/month (post), 500,000 tweets/month (read)
+200 per 24 hours (per user)
+25 per 24 hours (per user)
+5 per 15 mins (per user)
+API Key (Consumer Key)
+API Secret (Consumer Secret)
+API keys are managed in Settings → API Keys. Your
+Access Token
+Access Token Secret
+Active Agent
+Add Memory Item
+Add items to provide context to your workflow
+Add items to provide persistent context to your workflow
+Add the setting to the root
+Agent
+Agent Memory Configuration
+Agent Settings
+Agents with Codebase Search
+Agents with Memory Tools
+All Categories
+Be specific - this description is shown to the LLM to help it decide when to use the tool
+Bearer Token (Optional - for read-only)
+Bearer Token (alternative to OAuth)
+Build a custom tool with advanced mode (full control)
+Category (Optional)
+Chatting with
+Choose a Template
+Clear All Memory
+Clear History
+Clear filters
+Close (ESC)
+Codebase Search (RAG)
+Codex
+Configuration JSON
+Context Size
+Context is large - consider starting a new session
+Conversation state saved automatically (checkpoints) - enables pause/resume
+Conversations
+Copy Code
+Copy message
+Create First Tool
+Create New Tool
+Create Tool
+Create Your First Tool
+Create a new App (or use existing)
+Create and manage reusable tools for your workflows
+Custom Tool
+DELETE
+DELETE /2/tweets/:id
+DeepAgent
+Define what parameters your tool accepts
+Delete conversation
+Delete document
+Delete this tool?
+Delete user message
+Describe what this tool does... (This helps the LLM understand when to use it)
+Description:
+Discord
+Display name shown in the UI (can be different from Tool ID)
+Download History
+Draft
+ENABLE_EXPERIMENTAL_LOCAL_APIS=true
+End Session
+Endpoint
+Enter test input and run to see the output
+Find in Developer Portal → Your App → Keys and tokens → Authentication Tokens
+Find in Developer Portal → Your App → Keys and tokens → Consumer Keys
+Free Limit
+Free tier limits:
+Free tier rate limits for Twitter API v2 endpoints
+Full Documentation:
+GEMINI_API_KEY
+GET
+GET /2/tweets/:id
+GET /2/tweets/search/recent
+GET /2/users/:id
+GET /2/users/:id/mentions
+GET /2/users/:id/tweets
+GET /2/users/by/username/:username
+GET /2/users/me
+GPT Image 2 (Image)
+Generate and copy your API credentials below
+Generated Content
+Get your API credentials from the Twitter Developer Portal:
+Go to
+Hermes is disabled by default
+How Memory Works:
+How to get webhook URL:
+Import
+Input Schema
+Integer
+Intent
+Key
+Knowledge Base is King
+Knowledge:
+LangChain Implementation Code
+LangChain middleware documentation
+Loading metrics...
+Loading skills...
+Loading templates...
+Loading tools...
+Long-Term Memory (Store API)
+Long-term:
+Manage how your workflow remembers and learns across executions
+Manage in Knowledge Tab
+Message Template
+Modular capabilities that agents can automatically invoke based on context
+My Custom Tool
+Name:
+Navigate to "Keys and tokens" section
+New Conversation
+No agents available. Create a deep agent first.
+No agents found matching your search
+No agents have RAG enabled. Enable in agent configuration.
+No agents have memory tools enabled. Enable in agent configuration.
+No agents in workflow
+No conversations yet
+No events
+No memory items yet
+No templates found matching your search
+OPENAI_API_KEY
+PATCH
+POST
+POST /2/tweets
+POST /2/users/:id/following
+POST /2/users/:id/likes
+POST /2/users/:id/retweets
+PUT
+Parameter Name
+Persistent memory that agents can access via
+Persistent workflow memory across sessions - agents can store/retrieve context
+Project Knowledge Base
+Project Memory (RAG Tools)
+Project RAG database - semantic search over documents
+RAG Context
+RECENT
+Reindex
+Reload
+Review your tool configuration and copy the implementation code
+Run Test
+Running Test...
+Save Tool
+Schedule
+Search skills...
+Search templates...
+Search tools by name, description, or tags...
+Search tools...
+Send message (Enter)
+Session Metrics
+Short-term:
+Skills Library
+Start a conversation
+Start from Scratch
+Start with a pre-configured template or build from scratch
+Tags (comma-separated)
+Tags:
+Test Input
+Test Input (JSON)
+Test Tool
+Test the tool with sample input to make sure it works
+Testing...
+Tool Name
+Total Tools
+Total Usage
+Trigger
+Tweets
+Twitter API Setup Required
+Twitter Developer Portal
+Type:
+URL
+Unique identifier (letters, numbers, underscores only)
+Use Bearer Token for read-only operations (timeline, search). Not required if using OAuth tokens above.
+Use this code to integrate your custom tool into LangChain agents. Based on
+Users
+Validate
+Value (JSON or text)
+View Rate Limits
+View complete rate limits table on X Developer Portal →
+View conversation history
+View which agents in this workflow have memory features enabled. Configure memory settings in the Studio tab.
+What is this parameter for?
+Workflow Memory
+Workflow-Scoped Memory
+Your Twitter API Key
+Your Twitter API Secret
+Your Twitter Access Token
+Your Twitter Access Token Secret
+are automatically used for Google and OpenAI models.
+e.g., notifications, integrations
+e.g., user_preferences, api_config
+e.g., user_preferences, api_endpoint
+for the trust-boundary warning.
+lock version
+slack, notification, alerts
+target id
+{"key": "value"}
+{"key": "value"} or plain text
+{message}
+• Consider upgrading to Basic ($100/month) or Pro ($5,000/month) for higher limits
+• Exceeding limits returns 429 (Too Many Requests) error
+• Free tier limits are enforced per user AND per app
+• Monthly post limit: 1,500 tweets total
+• Rate limits reset based on the timeframe (15 mins or 24 hours)
+⚠️ Cannot Save - Please Fix These Errors:
+⚠️ Important Notes
+⚠️ Important:
+✓ Success
+✗ Error
+💡 Primary tools are your main abilities (Web Search, RAG, Custom). No limit on quantity.
+🔑 API Key Configuration
+🔧 Secondary tools provide support capabilities (APIs, Integrations, Data). No limit on quantity.

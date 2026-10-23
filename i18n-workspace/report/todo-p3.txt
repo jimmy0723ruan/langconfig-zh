@@ -1,0 +1,442 @@
+"After finding 2-3 relevant sources, provide your answer and STOP."
+#general
+(optional)
+. Also auto-evicts large outputs to disk.
+AI Generate
+API Call
+API Key
+API URL
+Action Preset Safety Controls
+Action Presets provide production-ready safety controls. Learn more in
+Add First Parameter
+Add Middleware
+Add Parameter
+Add Subagent
+Add a trigger...
+Add middleware to enhance agent capabilities with logging, cost tracking, validation, and more.
+Add tag...
+Add to Workflow
+Advanced agent with planning, subagents, and middleware
+Agent Created!
+Agent Details
+Agent Framework
+Agent Loadouts
+Agent Templates
+Agent → SubAgent → Sub-SubAgent
+All Status
+Allowed Tools
+Allows retrieval from your project’s vector store (documents/KB). This is a capability flag, not a tool.
+Anthropic Managed
+Anthropic Managed runs on Claude models only. Conversation and tool execution are hosted by Anthropic; 30-day retention.
+Anthropic Server Tools
+Array
+Auto-Triggers
+Auto-eviction of Context (Token Management)
+Auto-eviction to Filesystem
+Auto-summarization
+Auto-track Tasks
+Auto-triggers
+Automatically detect and redact personally identifiable information (emails, phone numbers, SSNs) from agent inputs and outputs.
+Automatically remove old conversation messages/context from memory when token limits are reached
+Automatically retry failed tool calls with exponential backoff. Handles transient errors and rate limits gracefully.
+Automatically retry when agent output is malformed
+Automatically save large tool outputs/results to disk when they exceed the size threshold
+Automatically summarize long conversation histories to stay within context limits. Uses a smaller model for cost efficiency.
+Automatically track tasks as the agent works
+Available Tools Reference
+Avg Similarity
+Back
+Backoff Factor
+Balanced Testing (100K tokens, moderate)
+Basic Information
+Basic Settings
+Binary file
+Boolean
+Brief description of this document...
+Brief description of what this agent does
+Brief description of what this skill does
+Buffer - Keep all messages in memory
+Buffer Window - Keep last N messages
+CHUNK OVERLAP
+CHUNK SIZE
+CSV
+Caches the system prompt for faster/cheaper turns (min ~2-4K tokens)
+Call
+Capture console
+Category
+Character Count:
+Choose Agent Type
+Choose a template to quickly create agents and tools
+Choose any file from the tree on the left.
+Choose one or more backends. Multiple selections will automatically create a Composite backend with path-based routing.
+Choose preset based on your testing needs. Auto-adjusts token limits and preservation settings.
+Chunk ID:
+Chunk Index:
+Chunks
+Claude Fable 5
+Claude Haiku 4.5
+Claude Opus 4.8
+Claude Sonnet 4.6
+Claude Sonnet 5
+Clear Results
+Code Generation
+Code Generator
+Compare
+Compare with TOON
+Complex research tasks
+Composite Backend Active
+Concurrent = running at the same time.
+Configure tool-specific interrupts in the interrupt_on field (requires manual JSON editing)
+Context Compaction Strategy
+Context Window Mode
+Conversation and tool execution are hosted by Anthropic; 30-day retention.
+Create Custom Agent
+Create Custom Tool
+Create and update task lists
+Create reusable expertise modules that inject instructions into agent context
+Custom
+DALL-E 3 (Image)
+DELETE
+Database Name
+Database Query
+Database Type
+Deep Agent
+Deep Agents
+DeepAgents Harness docs
+DeepAgents have access to the tools below based on enabled middleware. If your agent tries to call a tool that isn't available, enable the corresponding middleware.
+Default Channel
+Default: 5
+Define what parameters your tool accepts from the LLM
+Delete Skill
+Delete Skill?
+Delete task
+Depth 3 (default) = Agent can spawn subagents 3 levels deep. Prevents infinite delegation loops.
+Describe this parameter...
+Describe what this tool does...
+Description...
+Detailed instructions that will be injected into the agent's system prompt when this skill is active
+Difference Summary:
+Different models excel at different tasks (e.g., use GPT-5.4 Mini for faster analysis)
+Disabled:
+Discard Changes
+Discord
+Dismiss
+Document Name
+Documentation
+Documents
+Drag files here or click to browse
+Dynamic task()
+EDGES
+EMBEDDING MODEL
+Early Stopping Method
+Enable Conversation Memory
+Enable Memory
+Enable detailed logging for debugging
+Enable eval orchestration
+Enable persistent memory across sessions using LangGraph Store. The agent can remember context from previous workflow executions. Memory is isolated per workflow.
+Enabled:
+Enables filesystem tools:
+Enter document name...
+Enter system prompt...
+Enter the system prompt that defines the agent's behavior and capabilities... (or use AI Generate to auto-fill)
+Eval runs JavaScript in-process. Approval is enabled by default, and direct host-tool calls stay allowlist-only.
+Execute queries on PostgreSQL, MySQL, and other databases securely
+Execution Control
+Experimental
+Experimental Feature
+Extract and index files from archives
+Failed
+Featured
+Features
+File Size Threshold (bytes)
+File too large
+Filesystem Tools
+Filter Custom - Custom message filtering
+Fixed Anthropic toolset
+Folder
+Force - Return incomplete answer
+Format
+GET
+GPT Image 2 (Image)
+Gather information from the web, synthesize findings, and generate reports
+Gemini 2.5 Flash
+Gemini 3.1 Pro Preview
+Generate - Continue to generate answer
+Generate, refactor, and document code with filesystem tools and GitHub integration
+Generating...
+Get Started
+Google (Nano Banana Pro/2, Imagen 3, Veo 3)
+Google ADK
+Google ADK runs on Gemini models only. Human-in-the-Loop is not supported on this runtime.
+Handle Parsing Errors
+Higher = faster parallel work, but uses more tokens/memory. Lower if hitting recursion limits.
+History
+Host
+How to handle when max iterations reached without final answer
+Human-in-the-Loop
+HyDE
+Imagen 3 (Image)
+Include tool calls and results in response (useful for debugging)
+Included Agents
+Indexed
+Inject current timestamp into agent context. Helps agents understand temporal context for time-sensitive tasks.
+Inject project-specific context (workspace path, project name, active files) into agent prompts for better awareness.
+Injects project and task metadata into model context. No configuration needed.
+Input Format
+Input Parameters
+Instructions
+Instructions for the agent
+Instructions for the subagent (include tool usage guidance and output format)
+JSON
+JavaScript Interpreter
+Keep Editing
+Keep Last N Messages
+Keywords or phrases that automatically activate this skill
+Knowledge Base
+LangChain Agent Code
+LangGraph (default)
+LangGraph compaction method for managing long conversations
+Last Used
+Latency:
+Leave empty for default
+Leave empty for no maximum
+Leave empty for no minimum
+Library → Learn LangChain → Section 9
+Load More
+Loading agents...
+Loading documents...
+Loading file...
+Loading repositories...
+Log Inputs
+Log Outputs
+Logging
+Long-term Memory (Workflow-Scoped)
+Long-term Testing (200K tokens, preserves more history)
+MCP Tools (Native)
+Make HTTP requests to external APIs, handle authentication, and process responses
+Manage documents and vector embeddings for RAG-enabled agents
+Max Concurrent Subagents
+Max Depth
+Max Iterations
+Max Length (optional)
+Max Log Length
+Max PTC Calls
+Max Result Characters
+Max Retries
+Max Similarity:
+Max Tokens (Optional)
+Max Tokens Before Summary
+Max Total Tokens
+Memory Enabled
+Memory Limit (MB)
+Memory Type
+Middleware (Advanced)
+Min Length (optional)
+Min Similarity:
+Model Override
+MongoDB
+Multi-step workflows
+MySQL
+NODES
+New Agent
+New Skill
+New Tool
+No agents yet
+No configured host tools are available for PTC.
+No custom tools yet.
+No custom tools yet. Create one in the Custom Tool Builder to assign it here.
+No documents found
+No documents uploaded yet. Upload documents for RAG context!
+No indexable files in this repository.
+No parameters defined yet
+No project selected
+No repositories yet. Clone one above.
+No search history yet
+No skills found
+No specific configuration required for this tool type.
+No subagents configured
+No templates available.
+No tools yet
+No, Just Save
+None
+None - Keep all messages
+Notification
+Number
+OPTIONAL FEATURE
+Object
+Only include tools needed for this subagent's specific task
+OpenAI (GPT Image 2, GPT-Image-1.5, DALL-E 3, Sora)
+PATCH
+PII Redaction
+POST
+PTC Tool Allowlist
+PUT
+Parallel Tools
+Patterns: email, phone, ssn, credit_card, api_key, ip_address, password
+Pause execution for human review and approval before critical actions. Configure which operations require approval.
+Pending
+Persistence Mode
+Pick a template below or create one from scratch.
+Port
+PostgreSQL
+Preserve Recent Messages
+Processing
+Project Context
+Prompt caching
+Provider:
+Python strftime format
+Query Tokens:
+Rapid Prototyping (50K tokens, faster)
+Re-run
+Ready
+Recall Memory
+Record agent inputs and outputs for debugging and monitoring. Configurable log length limits.
+Regular Agent
+Remember previous messages in the conversation
+Remove First - Keep most recent only
+Remove Last - Keep earliest context
+Remove Oldest - FIFO (first in, first out)
+Replacement Text
+Repositories
+Require eval approval
+Required parameter
+Requires Human Approval
+Research
+Research Assistant
+Retrieval Time
+Return Intermediate Steps
+Run a search to see metrics here
+Run on Anthropic's infrastructure — no local execution. If selected, they replace the matching native web tool.
+Runs Anthropic's built-in toolset: bash, file ops, web search/fetch — in Anthropic's hosted container. Custom, native, and MCP tools are not available on this runtime.
+Runtime
+Save Agent
+Schema Preview
+Search
+Search History
+Search agents...
+Search by meaning...
+Searching...
+See
+Select Storage Backends
+Select a file to preview
+Select a project to manage its documents
+Select a project to manage its repositories.
+Select the type of agent you want to create
+Semantic Search
+Send alerts and notifications via Slack, email, webhooks, or custom channels
+Separate tags with commas
+Similarity
+Similarity:
+Simple tasks (2-3 tool calls)
+Skill Name
+Slack
+Sora (Video)
+Standard LangChain agent with tool calling and execution control
+Standard LangChain agent with tool calling capabilities
+Statistics
+Storage
+Store Memory
+Store Redaction Mappings
+Store original values for potential restoration
+String
+Subagent Type
+Subagent nesting:
+Subagents help isolate context and delegate specialized tasks
+Success Rate
+Summarization
+Summarization - Summarize earlier messages (LangGraph SummarizationNode)
+Summarize long context to preserve token budget
+Summary - Summarize old messages
+Summary Model
+Switch to Deep Agent to enable Subagents and Compiled Workflows
+Sync
+TOON
+Tags
+Task Management
+Template
+Template:
+Test Chat
+Testing
+Testing Agent
+The main agent receives only the final result from this workflow, keeping its context clean and focused.
+The main agent uses this to decide when to delegate
+The selected workflow will be compiled and executed as a subagent. Perfect for reusing complex multi-agent workflows.
+This code represents the LangChain/LangGraph configuration for this agent. Copy and use it in your Python projects.
+This description helps the LLM understand when to use the tool
+This is the unique identifier used by agents to call this tool
+Thread
+Time
+Timeout
+Timeout (seconds)
+Timestamp Injection
+Token Count:
+Tokens:
+Tool ID
+Tool ID:
+Tool Retry
+Tool Templates
+Tool outputs larger than this will be saved to disk (Default: 1MB)
+Tools are automatically wrapped with safety constraints including timeouts (60s for terminal), retry limits, and human-in-the-loop (HITL) approval for high-risk operations.
+Tools run without safety constraints. Enable this to add automatic timeouts, retry logic, and HITL approval gates for high-risk tools like terminal access.
+Top-K:
+Track token usage and API costs per agent execution. Provides detailed cost breakdowns by model and operation.
+Tracks estimated costs for model usage. No configuration needed.
+Trim Messages - Remove old messages (LangGraph trim_messages)
+Trim Strategy
+Turn
+Turns on long‑term memory for this agent (project/workflow store). Use
+URL:
+Unique identifier used when delegating tasks
+Unnamed Subagent
+Unsaved changes
+Upload
+Upload Document
+Uploading document...
+Usage Count
+Use parent agent model
+Validate agent outputs against custom rules (length, format, content patterns). Automatically retry on validation failures.
+Validation
+Veo 3 (Video)
+Veo 3.1 Fast (Video)
+Verbose Logging
+View Templates
+Web Tools
+Webhook:
+What this subagent does (be specific and action-oriented)
+Workflow Recipe
+Workflow Recipes
+Would you like to add this agent to your workflow now?
+Write and execute tests, analyze coverage, and identify edge cases
+XML
+YAML
+Yes, Add to Workflow
+You have unsaved changes to this agent configuration. Are you sure you want to leave? Your changes will be lost.
+Your Tools
+e.g., Code Researcher, Bug Hunter
+e.g., Code Review Expert
+e.g., notifications, integrations
+e.g., research-agent
+e.g., review my code
+for full tool documentation.
+sk-...
+slack, notification, alerts
+tag1, tag2, tag3
+to write/read entries.
+• Backend storage (Memory/SQLite/PostgreSQL)
+• Execution controls (max iterations, error handling)
+• Middleware (RAG, validation, tool selection)
+• Model selection
+• Planning capabilities
+• Simple memory (buffer, summary)
+• Subagent delegation
+• System prompt
+• System prompt customization
+• Temperature control
+• Tool selection (MCP tools)
+⚠️ Hitting limit repeatedly? Add stopping criteria to your system prompt instead:
+✓ ENABLED
+🍌 Nano Banana 2 (3.1 Flash) - RECOMMENDED
+🍌 Nano Banana Pro (3 Pro Image)
+💡 Context Quarantine
+💡 Each tool call = 1 iteration. Default: 15 (good for most tasks)
+💡 New Feature:

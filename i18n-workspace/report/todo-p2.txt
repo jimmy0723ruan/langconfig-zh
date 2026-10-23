@@ -1,0 +1,178 @@
+(Advanced)
+(from DeepAgent)
+(images, docs)
+(project docs/KB)
+1 hour
+1 minute
+15 minutes
+30 seconds
+3D view unavailable
+5 minutes
+Access current iteration with
+Accumulated cost
+Add new subagent
+Add node
+Advanced Configuration
+Advanced Reasoning
+Advanced: Delegate work to specialized agents or workflows
+Agent Attachments
+Agent Context
+Agent Execution Guardrails
+Agent Tools
+Agent guardrails...
+Agent responses will be validated against this schema
+Allow LLM to call multiple tools at once
+Apply a named set of redaction rules. Manage profiles in Settings / PII Profiles.
+Auto
+Auto-summarize at 80%
+Back to file list
+Cache LLM responses to save costs
+Cache TTL
+Cache this node's output to avoid re-execution
+Caching
+Cancel the current run
+Choose workflow
+Clear search
+Click the green
+Click the ground to place · Esc cancels
+Close replay
+Compiled (Workflow-based)
+Completed
+Condition Expression
+Connect edge labeled "continue" to loop back to target node
+Connect edge labeled "exit" to continue after loop completes
+Connect edges labeled "true" and "false" from this node
+Conversation History
+Copy path
+Custom Tools
+Custom tools
+Debug Mode
+Deep Agent
+Delete subagent
+Dictionary (Simple Agent)
+Did you know?
+Dismiss error
+Empty workflow
+Enable Cache
+Enable RAG
+Enable node caching
+Enable verbose logging for this agent
+Enter the system prompt for this agent...
+Equipped
+Est. Cost
+Estimated Cost
+Eval phase
+Events will appear here as the workflow executes
+Exit Condition (Optional)
+Expression evaluates to true or false
+Failed to load workflow
+File Operations
+First Person View
+Fit
+Fit view to graph
+Force agent responses to match a schema
+Full
+Full — no trimming (may hit context limit errors)
+Historical View
+How do I start?
+How it works:
+Inherits from main agent if empty
+Input
+Input Messages
+Input:
+Instructions for this subagent...
+Live Execution Panel
+Loading history…
+Loading workflow
+Long-Term Memory
+Loop will exit after this many iterations (default: 10)
+Maximum Iterations
+Maximum recursion depth for agent execution. Higher values allow more complex reasoning chains but may take longer.
+Memory Usage
+Middleware
+Mode
+Model (Optional)
+Multimodal
+Multimodal Input
+Native tools
+No execution events yet
+No past executions for this workflow yet.
+No profiles yet. Create one in Settings / PII Profiles.
+No runs found
+No skills available. Create skills in the Agents page.
+No subagents configured. Click "Add" to create one.
+Node waits for all parallel branches to complete before executing.
+None (all built-in types)
+Open Tool Configuration
+Open this workflow in the 2D Studio canvas
+Opens the full tool editor to view/edit all tool settings
+Optional: Exit loop early when this expression evaluates to true
+Original Query
+Output Schema
+Output:
+PII Profile
+Panel
+Parallel Tool Calls
+Preview rendered HTML
+Quarantine
+Quarantine — isolates large tool outputs to reduce tokens
+Real-time workflow execution monitoring and debugging
+Recall Memory (retrieve from memory)
+Recent
+Recent Activity
+Recent — keeps last N messages only (fast, predictable)
+Recursion Limit
+Replay
+Replay past executions
+Reset to Default
+Result
+Run History
+Run Workflow
+Run workflow
+Running subagents
+Runtime Context
+Scroll to bottom
+Search execution logs...
+Select Tool
+Select a node to configure
+Select a schema...
+Select a tool...
+Select a workflow...
+Select...
+Skills
+Skills provide specialized instructions and context for specific tasks. When enabled, the skill's instructions are injected into the agent's system prompt.
+Smart
+Smart — hybrid: trims old messages, keeps important ones
+Store Memory (save to memory)
+Structured Output
+Subagents
+Summary
+Summary — compresses older messages into AI summaries
+System Prompt
+The selected workflow will be compiled and used as a subagent
+Thinking
+Thinking toasts
+Thinking vs Panel
+This panel displays live execution details as your workflow runs, including agent reasoning, tool calls, and outputs in real-time.
+Tool Configuration
+Tool Parameters
+Total tokens (prompt + completion)
+Type
+Wait for all inputs
+Waiting for subagent response...
+What does this panel show?
+What should this workflow do? (Ctrl+Enter to run)
+What this subagent does (helps main agent decide when to delegate)
+Workflow execution failed. Check the logs above for details.
+You can auto-scroll by staying at the bottom, or scroll up to pause and review earlier steps.
+button in the toolbar to execute your workflow. The panel will automatically populate with execution details.
+e.g., state.get('retry_count', 0) < 3
+e.g., state.get('task_complete') == True
+in expressions
+show brief status updates on the canvas. This
+shows complete, detailed execution logs with full context.
+to access workflow state
+via Middleware
+⚠️ Modifying guardrails may cause unexpected agent behavior. Most users should leave this unchanged.
+⚠️ Required: Select a workflow or change type to "Dictionary"
+⚠️ Structured output may conflict with tools. When both are enabled, the model chooses between tool calls OR structured output, which can cause unpredictable behavior.

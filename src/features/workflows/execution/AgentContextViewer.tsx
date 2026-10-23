@@ -1,0 +1,226 @@
+/**
+ * Copyright (c) 2025 Cade Russell (Ghost Peony)
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+/**
+ * AgentContextViewer Component
+ *
+ * Shows what context an agent had access to during execution.
+ * Helps debug issues like missing images, wrong system prompts, etc.
+ */
+
+import React, { useState } from 'react';
+import { ChevronDown, ChevronRight, FileText, Image, Wrench, Settings, MessageSquare, Copy, Check } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+
+interface AgentContext {
+  agent_label: string;
+  node_id: string;
+  timestamp: string;
+  system_prompt: {
+    preview: string;
+    length: number;
+  };
+  tools: string[];
+  attachments: Array<{
+    name: string;
+    mimeType: string;
+    hasData: boolean;
+    dataSize?: number;
+  }>;
+  messages: Array<{
+    type: string;
+    content: any;
+  }>;
+  model_config: {
+    model: string;
+    temperature: number;
+    max_tokens?: number;
+    enable_memory?: boolean;
+    enable_rag?: boolean;
+  };
+  metadata?: Record<string, any>;
+}
+
+interface AgentContextViewerProps {
+  context: AgentContext;
+  isExpanded?: boolean;
+}
+
+// Internal tool-handoff messages injected by execute_tool_node (backend/core/workflows/nodes.py).
+// They carry tool output between nodes and should not appear as agent input messages.
+const INTERNAL_HANDOFF_PREFIXES = [
+  'Continue with your task using the output from',
+  '[Output from tool `',
+];
+
+function isInternalHandoffMessage(content: any): boolean {
+  const text =
+    typeof content === 'string'
+      ? content
+      : typeof content === 'object' && typeof content?.preview === 'string'
+        ? content.preview
+        : null;
+  return text !== null && INTERNAL_HANDOFF_PREFIXES.some((prefix) => text.startsWith(prefix));
+}
+
+export function AgentContextViewer({ context, isExpanded = false }: AgentContextViewerProps) {
+  const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(isExpanded);
+  const [copiedSection, setCopiedSection] = useState<string | null>(null);
+  const visibleMessages = context.messages.filter((msg) => !isInternalHandoffMessage(msg.content));
+
+  const handleCopy = async (text: string, section: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedSection(section);
+      setTimeout(() => setCopiedSection(null), 2000);
+    } catch (e) {
+      console.error('Failed to copy:', e);
+    }
+  };
+
+  const formatBytes = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  return (
+    <div className="border border-purple-700/30 rounded-lg bg-purple-900/20 mt-2 mb-2">
+      {/* Header */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium text-purple-300 hover:bg-purple-800/30 rounded-t-lg transition-colors"
+      >
+        {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+        <Settings className="w-4 h-4" />
+        <span>{t('Agent Context')}</span>
+        <span className="text-xs text-purple-400 ml-auto">
+          {t('{{tools}} tools • {{attachments}} attachments', { tools: context.tools.length, attachments: context.attachments.length })}
+        </span>
+      </button>
+
+      {/* Expandable Content */}
+      {expanded && (
+        <div className="px-3 pb-3 space-y-3">
+          {/* Model Config */}
+          <div className="bg-gray-800/50 rounded p-2">
+            <div className="text-xs font-medium text-gray-400 mb-1 flex items-center gap-1">
+              <Settings className="w-3 h-3" /> {t('Model')}
+            </div>
+            <div className="text-sm text-gray-200 flex flex-wrap gap-2">
+              <span className="bg-blue-900/40 px-2 py-0.5 rounded text-xs">{context.model_config.model}</span>
+              <span className="bg-gray-700 px-2 py-0.5 rounded text-xs">{t('temp: {{value}}', { value: context.model_config.temperature })}</span>
+              {context.model_config.enable_memory && (
+                <span className="bg-green-900/40 px-2 py-0.5 rounded text-xs">{t('Memory')}</span>
+              )}
+              {context.model_config.enable_rag && (
+                <span className="bg-green-900/40 px-2 py-0.5 rounded text-xs">{t('RAG')}</span>
+              )}
+            </div>
+          </div>
+
+          {/* System Prompt */}
+          <div className="bg-gray-800/50 rounded p-2">
+            <div className="text-xs font-medium text-gray-400 mb-1 flex items-center gap-1 justify-between">
+              <span className="flex items-center gap-1">
+                <FileText className="w-3 h-3" /> {t('System Prompt ({{count}} chars)', { count: context.system_prompt.length })}
+              </span>
+              <button
+                onClick={() => handleCopy(context.system_prompt.preview, 'prompt')}
+                className="text-gray-400 hover:text-gray-300"
+              >
+                {copiedSection === 'prompt' ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+              </button>
+            </div>
+            <pre className="text-xs text-gray-300 whitespace-pre-wrap font-mono max-h-32 overflow-y-auto bg-gray-900/50 p-2 rounded">
+              {context.system_prompt.preview}
+            </pre>
+          </div>
+
+          {/* Tools */}
+          {context.tools.length > 0 && (
+            <div className="bg-gray-800/50 rounded p-2">
+              <div className="text-xs font-medium text-gray-400 mb-1 flex items-center gap-1">
+                <Wrench className="w-3 h-3" /> {t('Tools ({{count}})', { count: context.tools.length })}
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {context.tools.map((tool, i) => (
+                  <span key={i} className="bg-orange-900/40 text-orange-200 px-2 py-0.5 rounded text-xs">
+                    {tool}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Attachments */}
+          {context.attachments.length > 0 && (
+            <div className="bg-gray-800/50 rounded p-2">
+              <div className="text-xs font-medium text-gray-400 mb-1 flex items-center gap-1">
+                <Image className="w-3 h-3" /> {t('Attachments ({{count}})', { count: context.attachments.length })}
+              </div>
+              <div className="space-y-1">
+                {context.attachments.map((att, i) => (
+                  <div key={i} className="flex items-center gap-2 text-xs bg-gray-900/50 px-2 py-1 rounded">
+                    <span className={att.hasData ? 'text-green-400' : 'text-red-500'}>
+                      {att.hasData ? '✓' : '✗'}
+                    </span>
+                    <span className="text-gray-300">{att.name}</span>
+                    <span className="text-gray-500">{att.mimeType}</span>
+                    {att.dataSize && <span className="text-gray-400">{formatBytes(att.dataSize)}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Messages Preview */}
+          {context.messages.length > 0 && visibleMessages.length === 0 && (
+            <div className="bg-gray-800/50 rounded p-2">
+              <div className="text-xs font-medium text-gray-400 mb-1 flex items-center gap-1">
+                <MessageSquare className="w-3 h-3" /> {t('Input Messages')}
+              </div>
+              <div className="text-xs text-gray-500 italic px-2 py-1">
+                {t('{{count}} internal tool handoff message(s) hidden', { count: context.messages.length })}
+              </div>
+            </div>
+          )}
+          {visibleMessages.length > 0 && (
+            <div className="bg-gray-800/50 rounded p-2">
+              <div className="text-xs font-medium text-gray-400 mb-1 flex items-center gap-1">
+                <MessageSquare className="w-3 h-3" />{' '}
+                {visibleMessages.length < context.messages.length
+                  ? t('Input Messages ({{visible}} of {{total}})', {
+                      visible: visibleMessages.length,
+                      total: context.messages.length,
+                    })
+                  : t('Input Messages ({{count}})', { count: visibleMessages.length })}
+              </div>
+              <div className="space-y-1 max-h-32 overflow-y-auto">
+                {visibleMessages.map((msg, i) => (
+                  <div key={i} className="text-xs bg-gray-900/50 px-2 py-1 rounded">
+                    <span className="font-medium text-gray-400">{msg.type}: </span>
+                    <span className="text-gray-300">
+                      {typeof msg.content === 'string'
+                        ? msg.content.substring(0, 100) + (msg.content.length > 100 ? '...' : '')
+                        : typeof msg.content === 'object' && msg.content?.preview
+                          ? msg.content.preview.substring(0, 100) + '...'
+                          : JSON.stringify(msg.content).substring(0, 100)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default AgentContextViewer;

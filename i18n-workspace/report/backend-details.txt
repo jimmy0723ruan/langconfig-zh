@@ -1,0 +1,83 @@
+     32 Workflow not found
+     15 Task not found
+     14 Session not found
+     13 File not found
+      7 Trigger not found
+      6 Store not available. Long-term memory is not initialized.
+      6 Repository not found
+      5 Schedule not found
+      4 Project not found
+      4 Document not found
+      4 DeepAgent not found
+      3 Version not found
+      3 Message not found
+      3 Agent not found
+      2 Task has no associated workflow
+      2 Session is not active
+      2 Repository is not cloned yet
+      2 Repository directory missing
+      2 Path is not a directory
+      2 Path escapes repository root
+      2 Invalid path
+      2 Image not found
+      2 File not found or could not be deleted
+      2 File metadata not found
+      2 File lives in an excluded directory
+      2 Error reading file
+      2 Could not rename file. It may not exist, or target name already exists.
+      1 watch_path is required for file_watch triggers
+      1 server_id in URL must match server_id in request body
+      1 python-docx library not installed
+      1 Webhook trigger not found
+      1 Version conflict detected. Another version was created concurrently. Please retry.
+      1 Use /reject endpoint to reject HITL
+      1 Trigger is disabled
+      1 Task cannot be cancelled
+      1 Source workflow not found
+      1 Result file not found
+      1 Result file no longer exists
+      1 Project with this name already exists
+      1 Path not found in repo
+      1 Only webhook triggers have secrets
+      1 Only user messages can be deleted
+      1 One or both versions not found
+      1 No files provided
+      1 Missing signature
+      1 Memory not found
+      1 Memory item not found
+      1 Invalid signature
+      1 Invalid provider
+      1 Invalid import file: missing 'tool' data
+      1 Invalid file path
+      1 Invalid checkpoint_id format
+      1 Invalid JSON format
+      1 Invalid JSON file
+      1 Invalid .langconfig format
+      1 IP not allowed
+      1 Hermes draft not found
+      1 Google account not connected. Please connect your Google account first.
+      1 Google Slides presentations cannot be downloaded. Use the result_url to access the presentation.
+      1 File type is not ingestable
+      1 File not found or invalid path
+      1 Failed to refresh token. Re-authentication may be required.
+      1 Failed to process webhook
+      1 Failed to generate agent configuration
+      1 Failed to delete repository
+      1 Export not found
+      1 Export file not found
+      1 Experimental local APIs are disabled
+      1 Experimental APIs accept loopback requests only
+      1 Error deleting file
+      1 Directory not found
+      1 Continuation task not found
+      1 Continuation task has no message history
+      1 Comment required for rejection
+      1 Checkpoint inspection is only supported for the 'langgraph' runtime
+      1 Cannot trigger disabled schedule
+      1 Cannot modify built-in schemas
+      1 Cannot delete builtin skills
+      1 Cannot delete built-in schemas
+      1 Cannot delete a task in progress
+      1 Can only continue from a completed task
+      1 Base URL should end with /v1
+      1 API key not found

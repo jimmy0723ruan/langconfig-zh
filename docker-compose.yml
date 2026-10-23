@@ -1,0 +1,46 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: langconfig-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-langconfig}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-langconfig_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-langconfig}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/db/init_postgres.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-langconfig} -d ${POSTGRES_DB:-langconfig}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - langconfig-network
+
+  # Optional: Redis for caching and distributed locking
+  redis:
+    image: redis:7-alpine
+    container_name: langconfig-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - langconfig-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  langconfig-network:
+    driver: bridge

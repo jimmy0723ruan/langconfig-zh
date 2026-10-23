@@ -1,0 +1,7 @@
+{
+  "• Use gpt-5.4-mini for testing": "• 测试时使用 gpt-5.4-mini",
+  "• Use prompt caching": "• 使用提示词缓存",
+  "• Version your prompts": "• 为提示词做版本管理",
+  "✓ Better:": "✓ 推荐：",
+  "❌ Avoid:": "❌ 避免："
+}

@@ -1,0 +1,168 @@
+/**
+ * Copyright (c) 2025 Cade Russell (Ghost Peony)
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+import type { ContentBlock } from '@/types/content-blocks';
+
+export interface ChatMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: string;
+  banked?: boolean;
+  /** Model reasoning (Anthropic adaptive thinking summary) — separate from content */
+  thinking?: string;
+  /** Structured content blocks from tool results (multimodal support) */
+  content_blocks?: ContentBlock[];
+  /** Artifacts for UI display only (not sent to LLM) */
+  artifacts?: ContentBlock[];
+  /** Whether the message contains multimodal content */
+  has_multimodal?: boolean;
+  /** Tool calls made while producing this message (session-local; not persisted) */
+  tool_calls?: ChatToolCallRecord[];
+}
+
+/** A tool invocation surfaced in the chat message flow. */
+export interface ChatToolCallRecord {
+  tool_name: string;
+  status: 'running' | 'completed' | 'error';
+  input?: any;
+  output?: any;
+  error?: string;
+  timestamp: string;
+}
+
+export interface ChatSession {
+  session_id: string;
+  agent_id: number;
+  project_id?: number | null;
+  agent_name: string;
+  is_active: boolean;
+  message_count: number;
+  last_message_preview: string | null;
+  created_at: string;
+  updated_at: string;
+  /** Execution runtime backing this session ('langgraph' default, 'google_adk', ...) */
+  runtime?: string;
+}
+
+export interface SessionMetrics {
+  total_tokens: number;
+  total_cost_usd?: number;
+  rag_context_tokens?: number;
+  context_tokens?: number;
+  cost_per_token?: number;
+  model_used?: string;
+  tool_calls: number;
+  subagent_spawns: number;
+  context_operations: number;
+}
+
+export interface SessionDocument {
+  id: number;
+  session_id: string;
+  filename: string;
+  original_filename: string;
+  file_size: number;
+  mime_type: string | null;
+  document_type: string;
+  indexing_status: 'not_indexed' | 'indexing' | 'ready' | 'failed';
+  uploaded_at: string;
+  message_index: number | null;
+  indexed_chunks_count: number | null;
+}
+
+export interface ToolCall {
+  tool_name: string;
+  arguments: Record<string, any>;
+  result: string;
+  timestamp: string;
+}
+
+export interface SubAgentActivity {
+  subagent_name: string;
+  action: string;
+  timestamp: string;
+}
+
+export interface DeepAgent {
+  id: number;
+  name: string;
+  description: string;
+  category: string;
+  config: any;
+  is_public: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChatStreamEvent {
+  type: 'chunk' | 'thinking' | 'complete' | 'error' | 'tool_start' | 'tool_end' | 'tool_artifact' | 'custom_event';
+  content?: string;
+  message?: string;
+  tool_name?: string;
+  data?: any;
+  /** Multimodal content blocks from tool results */
+  content_blocks?: ContentBlock[];
+  /** Artifacts for UI display only */
+  artifacts?: ContentBlock[];
+  /** Single artifact from tool_artifact event */
+  artifact?: ContentBlock;
+  /** Whether the result contains multimodal content */
+  has_multimodal?: boolean;
+}
+
+/** Custom event payload types for LangGraph-style streaming events */
+export interface CustomEventPayload {
+  event_type: 'progress' | 'status' | 'file_status' | string;
+  event_id?: string;
+  payload: {
+    label?: string;
+    value?: number;
+    total?: number;
+    status?: 'pending' | 'running' | 'success' | 'error' | 'warning';
+    message?: string;
+    filename?: string;
+    operation?: 'reading' | 'writing' | 'created' | 'modified' | 'deleted' | 'error';
+    size_bytes?: number;
+    [key: string]: any;
+  };
+  tool_name?: string;
+  agent_label?: string;
+  node_id?: string;
+  timestamp?: string;
+}
+
+export interface ChatContextState {
+  isOpen: boolean;
+  currentSessionId: string | null;
+  sessions: ChatSession[];
+  selectedAgentId: number | null;
+  hitlEnabled: boolean;
+}
+
+export interface CompletedExecutionSnapshot {
+  events: any[];
+  prompt: string | null;
+  metrics: any;
+  completedAt: string;
+  taskId?: number | null;
+}
+
+export interface ChatContextValue extends ChatContextState {
+  openChat: (agentId?: number) => void;
+  closeChat: () => void;
+  startSession: (agentId: number) => Promise<string>;
+  switchSession: (sessionId: string) => void;
+  clearCurrentSession: () => void;
+  endSession: (sessionId: string) => Promise<void>;
+  deleteSession: (sessionId: string) => Promise<void>;
+  setSelectedAgent: (agentId: number | null) => void;
+  toggleHitl: () => void;
+  refreshSessions: () => Promise<void>;
+  getCompletedExecutions: (key: string) => CompletedExecutionSnapshot[];
+  appendCompletedExecution: (key: string, snapshot: CompletedExecutionSnapshot) => void;
+  clearCompletedExecutions: (key: string) => void;
+}

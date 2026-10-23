@@ -1,0 +1,1132 @@
+/**
+ * Copyright (c) 2025 Cade Russell (Ghost Peony)
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
+import apiClient from '../lib/api-client';
+import { themes, applyTheme, loadTheme, type ThemeName } from '../lib/themes';
+import {
+  changeAppLanguage,
+  DEFAULT_LANGUAGE,
+  isSupportedLanguage,
+  LANGUAGE_OPTIONS,
+  type AppLanguage,
+} from '../i18n';
+import SettingsLayout, { SettingsCategory } from "../features/settings/ui/SettingsLayout";
+import LocalModelsSettings from "../features/settings/ui/LocalModelsSettings";
+import LocalWorkspaceSettings from "../features/settings/ui/LocalWorkspaceSettings";
+import ModelDefaultsSettings from '../features/settings/ui/ModelDefaultsSettings';
+import PIIProfilesSettings from '../features/settings/ui/PIIProfilesSettings';
+import SettingsSection, { SettingsInput, SettingsSelect } from '../features/settings/ui/SettingsSection';
+
+export default function SettingsView() {
+  const { t, i18n } = useTranslation();
+  const currentLanguage: AppLanguage = isSupportedLanguage(i18n.resolvedLanguage)
+    ? i18n.resolvedLanguage
+    : DEFAULT_LANGUAGE;
+  const [currentCategory, setCurrentCategory] = useState<SettingsCategory>('general');
+  const [isLoading, setIsLoading] = useState(true);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // API Keys state - separate "is set" status from user input
+  const [apiKeys, setApiKeys] = useState({
+    anthropic: '',
+    openai: '',
+    google: '',
+  });
+  const [apiKeyStatus, setApiKeyStatus] = useState({
+    anthropic: false,
+    openai: false,
+    google: false,
+  });
+  const [apiKeySaving, setApiKeySaving] = useState(false);
+  const [apiKeySaveMessage, setApiKeySaveMessage] = useState<string | null>(null);
+
+  // Theme state
+  const [currentTheme, setCurrentTheme] = useState<ThemeName>('dark');
+
+  // Type definitions for settings
+  interface LocalModelsSettings {
+    provider: string;
+    baseUrl: string;
+    modelName: string;
+    apiKey: string;
+  }
+
+  interface WorkspaceSettings {
+    workspacePath: string;
+    allowRead: boolean;
+    allowWrite: boolean;
+    requireApproval: boolean;
+    autoDetectGit: boolean;
+    backupBeforeEdit: boolean;
+  }
+
+  interface ModelDefaultsSettings {
+    primaryModel: string;
+    fallbackModels: string[];
+    temperature: number;
+    maxTokens: number;
+    topP: number;
+    routingStrategy: string;
+    dailyTokenLimit: number;
+    monthlyTokenLimit: number;
+    alertThreshold: number;
+  }
+
+  interface GeneralSettings {
+    appName: string;
+    storagePath: string;
+    autoSave: boolean;
+    autoSaveInterval: number;
+    confirmBeforeDelete: boolean;
+    showNotifications: boolean;
+    checkUpdates: boolean;
+    telemetry: boolean;
+    logLevel: string;
+  }
+
+  interface RagSettings {
+    embeddingModel: string;
+    chunkSize: number;
+    chunkOverlap: number;
+  }
+
+  // Local Models state - start with null, load from backend
+  const [localModelsSettings, setLocalModelsSettings] = useState<LocalModelsSettings | null>(null);
+
+  // Local Workspace state - start with null, load from backend
+  const [workspaceSettings, setWorkspaceSettings] = useState<WorkspaceSettings | null>(null);
+
+  // Model Defaults state - start with null, load from backend
+  const [modelDefaultsSettings, setModelDefaultsSettings] = useState<ModelDefaultsSettings | null>(null);
+
+  // General settings state - start with null, load from backend
+  const [generalSettings, setGeneralSettings] = useState<GeneralSettings>({
+    appName: 'LangConfig',
+    autoSave: true,
+    autoSaveInterval: 300,
+    confirmBeforeDelete: true,
+    showNotifications: true,
+    checkUpdates: true,
+    telemetry: false,
+    logLevel: 'info',
+    storagePath: ''
+  });
+
+  // RAG settings state - start with null, load from backend
+  const [ragSettings, setRagSettings] = useState<RagSettings | null>(null);
+
+  useEffect(() => {
+    const abortController = new AbortController();
+
+    loadSettings();
+    const theme = loadTheme();
+    setCurrentTheme(theme.name);
+
+    return () => {
+      abortController.abort();
+    };
+  }, []);
+
+  const loadSettings = async () => {
+    try {
+      // Load API keys status (don't load masked keys into inputs!)
+      const keysResponse = await apiClient.getApiKeys();
+      const keys = keysResponse.data || [];
+      setApiKeyStatus({
+        anthropic: keys.find((k: any) => k.provider === 'anthropic')?.is_set || false,
+        openai: keys.find((k: any) => k.provider === 'openai')?.is_set || false,
+        google: keys.find((k: any) => k.provider === 'google')?.is_set || false,
+      });
+      // Keep input fields empty - user types new key to update
+      setApiKeys({
+        anthropic: '',
+        openai: '',
+        google: '',
+      });
+
+      // Load general settings
+      try {
+        const generalResponse = await apiClient.getGeneralSettings();
+        const generalData = generalResponse.data;
+        setGeneralSettings({
+          appName: generalData.app_name || 'LangConfig',
+          autoSave: generalData.auto_save ?? true,
+          autoSaveInterval: generalData.auto_save_interval || 300,
+          confirmBeforeDelete: generalData.confirm_before_delete ?? true,
+          showNotifications: generalData.show_notifications ?? true,
+          checkUpdates: generalData.check_updates ?? true,
+          telemetry: generalData.telemetry ?? false,
+          logLevel: generalData.log_level || 'info',
+          storagePath: generalData.storage_path || ''
+        });
+      } catch (error) {
+      }
+
+      // Load local models settings
+      try {
+        const localModelsResponse = await apiClient.getLocalModelsSettings();
+        const localModelsData = localModelsResponse.data;
+        setLocalModelsSettings({
+          provider: localModelsData.provider || 'ollama',
+          baseUrl: localModelsData.base_url || 'http://localhost:11434/v1',
+          modelName: localModelsData.model_name || 'llama3.2:latest',
+          apiKey: localModelsData.api_key || ''
+        });
+      } catch (error) {
+      }
+
+      // Load workspace settings
+      try {
+        const workspaceResponse = await apiClient.getWorkspaceSettings();
+        const workspaceData = workspaceResponse.data;
+        setWorkspaceSettings({
+          workspacePath: workspaceData.workspace_path || '',
+          allowRead: workspaceData.allow_read ?? true,
+          allowWrite: workspaceData.allow_write ?? true,
+          requireApproval: workspaceData.require_approval ?? true,
+          autoDetectGit: workspaceData.auto_detect_git ?? true,
+          backupBeforeEdit: workspaceData.backup_before_edit ?? true
+        });
+      } catch (error) {
+      }
+
+      // Load model defaults settings
+      try {
+        const modelDefaultsResponse = await apiClient.getModelDefaults();
+        const modelDefaultsData = modelDefaultsResponse.data;
+        setModelDefaultsSettings({
+          primaryModel: modelDefaultsData.primary_model || 'gpt-5.4',
+          fallbackModels: modelDefaultsData.fallback_models || ['claude-sonnet-4-6'],
+          temperature: modelDefaultsData.temperature ?? 0.7,
+          maxTokens: modelDefaultsData.max_tokens || 4096,
+          topP: modelDefaultsData.top_p ?? 1.0,
+          routingStrategy: modelDefaultsData.routing_strategy || 'balanced',
+          dailyTokenLimit: modelDefaultsData.daily_token_limit || 0,
+          monthlyTokenLimit: modelDefaultsData.monthly_token_limit || 0,
+          alertThreshold: modelDefaultsData.alert_threshold || 80
+        });
+      } catch (error) {
+      }
+
+      // Load RAG settings from main settings endpoint
+      try {
+        const settingsResponse = await apiClient.getSettings();
+        const settingsData = settingsResponse.data;
+        setRagSettings({
+          embeddingModel: settingsData.embedding_model || 'text-embedding-3-small',
+          chunkSize: settingsData.chunk_size || 1000,
+          chunkOverlap: settingsData.chunk_overlap || 200
+        });
+      } catch (error) {
+        console.error('Failed to load RAG settings:', error);
+      }
+
+    } catch (error) {
+      // Ignore abort errors
+      if (error instanceof Error && (error.name === 'AbortError' || error.name === 'CanceledError')) {
+        return;
+      }
+      console.error('Failed to load settings:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Debounced autosave function
+  const autoSave = useCallback((category: SettingsCategory) => {
+    // Clear existing timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    // Set new timeout to save after 1 second of no changes
+    saveTimeoutRef.current = setTimeout(async () => {
+      try {
+        switch (category) {
+          case 'api-keys':
+            await apiClient.setApiKeys({
+              anthropic_api_key: apiKeys.anthropic || undefined,
+              openai_api_key: apiKeys.openai || undefined,
+              google_api_key: apiKeys.google || undefined,
+            });
+            break;
+
+          case 'general':
+            if (!generalSettings) return;
+            await apiClient.updateGeneralSettings({
+              app_name: generalSettings.appName,
+              auto_save: generalSettings.autoSave,
+              auto_save_interval: generalSettings.autoSaveInterval,
+              confirm_before_delete: generalSettings.confirmBeforeDelete,
+              show_notifications: generalSettings.showNotifications,
+              check_updates: generalSettings.checkUpdates,
+              telemetry: generalSettings.telemetry,
+              log_level: generalSettings.logLevel
+            });
+            // Also save RAG settings to main settings endpoint
+            if (ragSettings) {
+              await apiClient.updateSettings({
+                embedding_model: ragSettings.embeddingModel,
+                chunk_size: ragSettings.chunkSize,
+                chunk_overlap: ragSettings.chunkOverlap
+              });
+            }
+            break;
+
+          case 'local-models':
+            if (!localModelsSettings) return;
+            await apiClient.updateLocalModelsSettings({
+              provider: localModelsSettings.provider,
+              base_url: localModelsSettings.baseUrl,
+              model_name: localModelsSettings.modelName,
+              api_key: localModelsSettings.apiKey || null
+            });
+            break;
+
+          case 'local-workspace':
+            if (!workspaceSettings) return;
+            await apiClient.updateWorkspaceSettings({
+              workspace_path: workspaceSettings.workspacePath,
+              allow_read: workspaceSettings.allowRead,
+              allow_write: workspaceSettings.allowWrite,
+              require_approval: workspaceSettings.requireApproval,
+              auto_detect_git: workspaceSettings.autoDetectGit,
+              backup_before_edit: workspaceSettings.backupBeforeEdit
+            });
+            break;
+
+          case 'model-defaults':
+            if (!modelDefaultsSettings) return;
+            await apiClient.updateModelDefaultsSettings({
+              primary_model: modelDefaultsSettings.primaryModel,
+              fallback_models: modelDefaultsSettings.fallbackModels,
+              temperature: modelDefaultsSettings.temperature,
+              max_tokens: modelDefaultsSettings.maxTokens,
+              top_p: modelDefaultsSettings.topP,
+              routing_strategy: modelDefaultsSettings.routingStrategy,
+              daily_token_limit: modelDefaultsSettings.dailyTokenLimit,
+              monthly_token_limit: modelDefaultsSettings.monthlyTokenLimit,
+              alert_threshold: modelDefaultsSettings.alertThreshold
+            });
+            break;
+        }
+      } catch (error) {
+        console.error('Failed to autosave settings:', error);
+      }
+    }, 1000); // 1 second debounce
+  }, [apiKeys, generalSettings, ragSettings, localModelsSettings, workspaceSettings, modelDefaultsSettings]);
+
+  const handleThemeChange = (themeName: ThemeName) => {
+    const theme = themes[themeName];
+    applyTheme(theme);
+    setCurrentTheme(themeName);
+  };
+
+  const renderCategoryContent = () => {
+    switch (currentCategory) {
+      case 'general':
+        return (
+          <div>
+            <SettingsSection
+              title={t('Language')}
+              description={t('Choose the interface language')}
+              icon="translate"
+            >
+              <SettingsSelect
+                label={t('Language')}
+                value={currentLanguage}
+                onChange={(value) => {
+                  void changeAppLanguage(value as AppLanguage);
+                }}
+                options={LANGUAGE_OPTIONS}
+                description={t('Choose the interface language')}
+              />
+            </SettingsSection>
+
+            <SettingsSection
+              title={t('Application Settings')}
+              description={t('General application preferences and behavior')}
+              icon="tune"
+            >
+              <div className="space-y-4">
+                <div className="border-t border-gray-200 dark:border-border-dark pt-3 mt-3">
+                  <h4 className="text-sm font-medium mb-2" style={{ color: 'var(--color-text-primary)' }}>
+                    {t('Auto-Save')}
+                  </h4>
+                  <div className="space-y-2.5">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={generalSettings.autoSave}
+                        onChange={(e) => {
+                          setGeneralSettings({ ...generalSettings, autoSave: e.target.checked });
+                          autoSave('general');
+                        }}
+                        className="w-4 h-4 text-primary bg-white dark:bg-background-dark border-gray-300 dark:border-border-dark rounded focus:ring-2 focus:ring-primary"
+                      />
+                      <div className="flex-1">
+                        <span className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                          {t('Enable auto-save')}
+                        </span>
+                        <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                          {t('Automatically save workflows at regular intervals')}
+                        </p>
+                      </div>
+                    </label>
+
+                    {generalSettings.autoSave && (
+                      <SettingsInput
+                        label={t('Auto-save interval (seconds)')}
+                        type="number"
+                        value={generalSettings.autoSaveInterval.toString()}
+                        onChange={(value) => {
+                          setGeneralSettings({ ...generalSettings, autoSaveInterval: parseInt(value) || 60 });
+                          autoSave('general');
+                        }}
+                        description={t('How often to automatically save (minimum 30 seconds)')}
+                      />
+                    )}
+                  </div>
+                </div>
+
+                <div className="border-t border-gray-200 dark:border-border-dark pt-3 mt-3">
+                  <h4 className="text-sm font-medium mb-2" style={{ color: 'var(--color-text-primary)' }}>
+                    {t('Notifications & Confirmations')}
+                  </h4>
+                  <div className="space-y-2.5">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={generalSettings.confirmBeforeDelete}
+                        onChange={(e) => {
+                          setGeneralSettings({ ...generalSettings, confirmBeforeDelete: e.target.checked });
+                          autoSave('general');
+                        }}
+                        className="w-4 h-4 text-primary bg-white dark:bg-background-dark border-gray-300 dark:border-border-dark rounded focus:ring-2 focus:ring-primary"
+                      />
+                      <div className="flex-1">
+                        <span className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                          {t('Confirm before deleting')}
+                        </span>
+                        <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                          {t('Show confirmation dialog before deleting workflows or agents')}
+                        </p>
+                      </div>
+                    </label>
+
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={generalSettings.showNotifications}
+                        onChange={(e) => {
+                          setGeneralSettings({ ...generalSettings, showNotifications: e.target.checked });
+                          autoSave('general');
+                        }}
+                        className="w-4 h-4 text-primary bg-white dark:bg-background-dark border-gray-300 dark:border-border-dark rounded focus:ring-2 focus:ring-primary"
+                      />
+                      <div className="flex-1">
+                        <span className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                          {t('Show notifications')}
+                        </span>
+                        <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                          {t('Display system notifications for workflow completion and errors')}
+                        </p>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="border-t border-gray-200 dark:border-border-dark pt-3 mt-3">
+                  <h4 className="text-sm font-medium mb-2" style={{ color: 'var(--color-text-primary)' }}>
+                    {t('RAG Document Storage')}
+                  </h4>
+                  <div>
+                    <label className="text-sm font-medium mb-1.5 block" style={{ color: 'var(--color-text-primary)' }}>
+                      {t('Storage Path for Vector Database Documents')}
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={generalSettings.storagePath}
+                        onChange={(e) => {
+                          setGeneralSettings({ ...generalSettings, storagePath: e.target.value });
+                          autoSave('general');
+                        }}
+                        placeholder={t('C:\\Users\\YourName\\Documents\\LangConfig or ./data/documents')}
+                        className="flex-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-border-dark rounded-lg focus:outline-none focus:ring-2 focus:ring-primary font-mono"
+                        style={{
+                          backgroundColor: 'var(--color-input-background)',
+                          color: 'var(--color-text-primary)'
+                        }}
+                      />
+                      <button
+                        onClick={async () => {
+                          try {
+                            const windowWithTauri = window as typeof window & { __TAURI__?: unknown };
+                            if (windowWithTauri.__TAURI__) {
+                              const { open } = await import('@tauri-apps/plugin-dialog');
+                              const selected = await open({
+                                directory: true,
+                                multiple: false,
+                                defaultPath: generalSettings.storagePath || undefined
+                              });
+                              if (selected && typeof selected === 'string') {
+                                setGeneralSettings({ ...generalSettings, storagePath: selected });
+                                autoSave('general');
+                              }
+                            }
+                          } catch (error) {
+                            console.error('Error selecting folder:', error);
+                          }
+                        }}
+                        title={(window as typeof window & { __TAURI__?: unknown }).__TAURI__ ? 'Browse for folder' : 'Browse button only available in desktop app - enter path manually'}
+                        className="px-3 py-1.5 text-sm font-medium bg-white dark:bg-background-dark border border-gray-300 dark:border-border-dark rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                        style={{ color: 'var(--color-text-primary)' }}
+                      >
+                        {t('Browse')}
+                      </button>
+                    </div>
+                    <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
+                      {t('Enter full path (e.g.,')} <code className="px-1 py-0.5 bg-gray-100 dark:bg-white/10 rounded text-xs">{t('C:\\Documents\\LangConfig')}</code> or <code className="px-1 py-0.5 bg-gray-100 dark:bg-white/10 rounded text-xs">{t('./data/documents')}</code>{t('). Documents are stored here before indexing into embedded pgvector database. Change requires restart.')}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="border-t border-gray-200 dark:border-border-dark pt-3 mt-3">
+                  <h4 className="text-sm font-medium mb-2" style={{ color: 'var(--color-text-primary)' }}>
+                    {t('RAG Configuration')}
+                  </h4>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-sm font-medium mb-1.5 block" style={{ color: 'var(--color-text-primary)' }}>
+                        {t('Embedding Model')}
+                      </label>
+                      <select
+                        value={ragSettings?.embeddingModel || 'text-embedding-3-small'}
+                        onChange={(e) => {
+                          if (ragSettings) {
+                            setRagSettings({ ...ragSettings, embeddingModel: e.target.value });
+                            autoSave('general');
+                          }
+                        }}
+                        className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-border-dark rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                        style={{
+                          backgroundColor: 'var(--color-input-background)',
+                          color: 'var(--color-text-primary)'
+                        }}
+                      >
+                        <option value="text-embedding-3-small">{t('text-embedding-3-small (OpenAI)')}</option>
+                        <option value="text-embedding-3-large">{t('text-embedding-3-large (OpenAI)')}</option>
+                        <option value="text-embedding-ada-002">{t('text-embedding-ada-002 (OpenAI Legacy)')}</option>
+                      </select>
+                      <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                        {t('Model used for generating embeddings for document chunking')}
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium mb-1.5 block" style={{ color: 'var(--color-text-primary)' }}>
+                        {t('Chunk Size')}
+                      </label>
+                      <input
+                        type="number"
+                        min="100"
+                        max="4000"
+                        step="100"
+                        value={ragSettings?.chunkSize || 1000}
+                        onChange={(e) => {
+                          if (ragSettings) {
+                            setRagSettings({ ...ragSettings, chunkSize: parseInt(e.target.value) || 1000 });
+                            autoSave('general');
+                          }
+                        }}
+                        className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-border-dark rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                        style={{
+                          backgroundColor: 'var(--color-input-background)',
+                          color: 'var(--color-text-primary)'
+                        }}
+                      />
+                      <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                        {t('Maximum characters per document chunk (100-4000)')}
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium mb-1.5 block" style={{ color: 'var(--color-text-primary)' }}>
+                        {t('Chunk Overlap')}
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="1000"
+                        step="50"
+                        value={ragSettings?.chunkOverlap || 200}
+                        onChange={(e) => {
+                          if (ragSettings) {
+                            setRagSettings({ ...ragSettings, chunkOverlap: parseInt(e.target.value) || 200 });
+                            autoSave('general');
+                          }
+                        }}
+                        className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-border-dark rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                        style={{
+                          backgroundColor: 'var(--color-input-background)',
+                          color: 'var(--color-text-primary)'
+                        }}
+                      />
+                      <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                        {t('Characters of overlap between consecutive chunks (0-1000)')}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t border-gray-200 dark:border-border-dark pt-3 mt-3">
+                  <h4 className="text-sm font-medium mb-2" style={{ color: 'var(--color-text-primary)' }}>
+                    {t('Updates & Telemetry')}
+                  </h4>
+                  <div className="space-y-2.5">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={generalSettings.checkUpdates}
+                        onChange={(e) => {
+                          setGeneralSettings({ ...generalSettings, checkUpdates: e.target.checked });
+                          autoSave('general');
+                        }}
+                        className="w-4 h-4 text-primary bg-white dark:bg-background-dark border-gray-300 dark:border-border-dark rounded focus:ring-2 focus:ring-primary"
+                      />
+                      <div className="flex-1">
+                        <span className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                          {t('Check for updates')}
+                        </span>
+                        <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                          {t('Automatically check for new versions on startup')}
+                        </p>
+                      </div>
+                    </label>
+
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={generalSettings.telemetry}
+                        onChange={(e) => {
+                          setGeneralSettings({ ...generalSettings, telemetry: e.target.checked });
+                          autoSave('general');
+                        }}
+                        className="w-4 h-4 text-primary bg-white dark:bg-background-dark border-gray-300 dark:border-border-dark rounded focus:ring-2 focus:ring-primary"
+                      />
+                      <div className="flex-1">
+                        <span className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                          {t('Anonymous usage statistics')}
+                        </span>
+                        <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                          {t('Help improve LangConfig by sharing anonymous usage data')}
+                        </p>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </SettingsSection>
+          </div>
+        );
+
+      case 'api-keys':
+        return (
+          <div>
+            <SettingsSection
+              title="API Keys & Providers"
+              description={t('Configure your AI provider API keys. These are required for agent execution. Keys are encrypted and stored in the database.')}
+              icon="key"
+            >
+              <div className="space-y-4">
+                {/* Anthropic */}
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <label className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                      {t('Anthropic API Key')}
+                    </label>
+                    {apiKeyStatus.anthropic ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 rounded-full">
+                        <span className="material-symbols-outlined text-xs">check_circle</span>
+                        {t('Configured')}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-gray-100 dark:bg-gray-500/20 text-gray-600 dark:text-gray-400 rounded-full">
+                        {t('Not set')}
+                      </span>
+                    )}
+                  </div>
+                  <input
+                    type="password"
+                    value={apiKeys.anthropic}
+                    onChange={(e) => setApiKeys({ ...apiKeys, anthropic: e.target.value })}
+                    placeholder={apiKeyStatus.anthropic ? "Enter new key to replace existing" : "sk-ant-..."}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-border-dark rounded-lg focus:outline-none focus:ring-2 focus:ring-primary font-mono"
+                    style={{
+                      backgroundColor: 'var(--color-input-background)',
+                      color: 'var(--color-text-primary)'
+                    }}
+                  />
+                  <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                    {t('Required for Claude models (claude-sonnet-5, claude-opus-4-8, etc.)')}
+                  </p>
+                </div>
+
+                {/* OpenAI */}
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <label className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                      {t('OpenAI API Key')}
+                    </label>
+                    {apiKeyStatus.openai ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 rounded-full">
+                        <span className="material-symbols-outlined text-xs">check_circle</span>
+                        {t('Configured')}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-gray-100 dark:bg-gray-500/20 text-gray-600 dark:text-gray-400 rounded-full">
+                        {t('Not set')}
+                      </span>
+                    )}
+                  </div>
+                  <input
+                    type="password"
+                    value={apiKeys.openai}
+                    onChange={(e) => setApiKeys({ ...apiKeys, openai: e.target.value })}
+                    placeholder={apiKeyStatus.openai ? "Enter new key to replace existing" : "sk-..."}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-border-dark rounded-lg focus:outline-none focus:ring-2 focus:ring-primary font-mono"
+                    style={{
+                      backgroundColor: 'var(--color-input-background)',
+                      color: 'var(--color-text-primary)'
+                    }}
+                  />
+                  <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                    {t('Required for GPT models (gpt-5.5, gpt-5.4, gpt-5.4-mini, etc.)')}
+                  </p>
+                </div>
+
+                {/* Google */}
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <label className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                      {t('Google API Key')}
+                    </label>
+                    {apiKeyStatus.google ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 rounded-full">
+                        <span className="material-symbols-outlined text-xs">check_circle</span>
+                        {t('Configured')}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-gray-100 dark:bg-gray-500/20 text-gray-600 dark:text-gray-400 rounded-full">
+                        {t('Not set')}
+                      </span>
+                    )}
+                  </div>
+                  <input
+                    type="password"
+                    value={apiKeys.google}
+                    onChange={(e) => setApiKeys({ ...apiKeys, google: e.target.value })}
+                    placeholder={apiKeyStatus.google ? "Enter new key to replace existing" : "AIza..."}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-border-dark rounded-lg focus:outline-none focus:ring-2 focus:ring-primary font-mono"
+                    style={{
+                      backgroundColor: 'var(--color-input-background)',
+                      color: 'var(--color-text-primary)'
+                    }}
+                  />
+                  <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                    {t('Required for Gemini models (gemini-2.5-pro, gemini-2.5-flash, etc.)')}
+                  </p>
+                </div>
+
+                {/* Save Button and Status */}
+                <div className="pt-4 border-t border-gray-200 dark:border-border-dark">
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={async () => {
+                        // Only save keys that have been entered (non-empty)
+                        const keysToSave: Record<string, string> = {};
+                        if (apiKeys.anthropic) keysToSave.anthropic_api_key = apiKeys.anthropic;
+                        if (apiKeys.openai) keysToSave.openai_api_key = apiKeys.openai;
+                        if (apiKeys.google) keysToSave.google_api_key = apiKeys.google;
+
+                        if (Object.keys(keysToSave).length === 0) {
+                          setApiKeySaveMessage('Enter at least one API key to save');
+                          setTimeout(() => setApiKeySaveMessage(null), 3000);
+                          return;
+                        }
+
+                        setApiKeySaving(true);
+                        setApiKeySaveMessage(null);
+                        try {
+                          await apiClient.setApiKeys(keysToSave);
+                          // Update status for saved keys
+                          setApiKeyStatus({
+                            anthropic: apiKeyStatus.anthropic || !!apiKeys.anthropic,
+                            openai: apiKeyStatus.openai || !!apiKeys.openai,
+                            google: apiKeyStatus.google || !!apiKeys.google,
+                          });
+                          // Clear input fields after successful save
+                          setApiKeys({ anthropic: '', openai: '', google: '' });
+                          setApiKeySaveMessage('API keys saved successfully!');
+                          setTimeout(() => setApiKeySaveMessage(null), 3000);
+                        } catch (error) {
+                          console.error('Failed to save API keys:', error);
+                          setApiKeySaveMessage('Failed to save API keys. Please try again.');
+                          setTimeout(() => setApiKeySaveMessage(null), 5000);
+                        } finally {
+                          setApiKeySaving(false);
+                        }
+                      }}
+                      disabled={apiKeySaving || (!apiKeys.anthropic && !apiKeys.openai && !apiKeys.google)}
+                      className="px-4 py-2 text-sm font-medium bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      {apiKeySaving ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          {t('Saving...')}
+                        </>
+                      ) : (
+                        <>
+                          <span className="material-symbols-outlined text-base">save</span>
+                          {t('Save API Keys')}
+                        </>
+                      )}
+                    </button>
+                    {apiKeySaveMessage && (
+                      <span className={`text-sm ${apiKeySaveMessage.includes('successfully') ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                        {apiKeySaveMessage}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs mt-2" style={{ color: 'var(--color-text-muted)' }}>
+                    {t('Only non-empty fields will be saved. Leave a field empty to keep the existing key.')}
+                  </p>
+                </div>
+              </div>
+            </SettingsSection>
+
+            <SettingsSection
+              title={t('Security Notice')}
+              icon="warning"
+            >
+              <div className="flex gap-3 p-4 bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/30 rounded-lg">
+                <span className="material-symbols-outlined text-yellow-600 dark:text-yellow-400 text-xl">
+                  lock
+                </span>
+                <div>
+                  <h5 className="text-sm font-semibold text-yellow-800 dark:text-yellow-400 mb-1">
+                    {t('Database Storage')}
+                  </h5>
+                  <p className="text-xs text-yellow-700 dark:text-yellow-400/80 mb-2">
+                    {t('API keys are stored in PostgreSQL database (')}<code className="px-1 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 rounded">settings</code> {t('table) and persist across backend restarts.')}
+                  </p>
+                  <p className="text-xs text-yellow-700 dark:text-yellow-400/80">
+                    <strong>{t('Note:')}</strong> {t('Keys are currently stored unencrypted. Future versions will add encryption and migrate to OS keychain (macOS Keychain, Windows Credential Manager, Linux Secret Service) via Tauri for enhanced security.')}
+                  </p>
+                </div>
+              </div>
+            </SettingsSection>
+          </div>
+        );
+
+      case 'local-models':
+        return <LocalModelsSettings />;
+
+      case 'local-workspace':
+        if (!workspaceSettings) return null;
+        return (
+          <LocalWorkspaceSettings
+            settings={workspaceSettings}
+            onSettingsChange={(newSettings: WorkspaceSettings) => {
+              setWorkspaceSettings(newSettings);
+              autoSave('local-workspace');
+            }}
+          />
+        );
+
+      case 'model-defaults':
+        if (!modelDefaultsSettings) return null;
+        return (
+          <div>
+            <ModelDefaultsSettings
+              settings={modelDefaultsSettings}
+              onSettingsChange={(newSettings: ModelDefaultsSettings) => {
+                setModelDefaultsSettings(newSettings);
+                autoSave('model-defaults');
+              }}
+            />
+            <SettingsSection
+              title={t('Override Behavior')}
+              icon="info"
+            >
+              <div className="flex gap-3 p-4 bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-lg">
+                <span className="material-symbols-outlined text-blue-600 dark:text-blue-400 text-xl">
+                  info
+                </span>
+                <div>
+                  <h5 className="text-sm font-semibold text-blue-800 dark:text-blue-400 mb-1">
+                    {t('Settings Hierarchy')}
+                  </h5>
+                  <p className="text-xs text-blue-700 dark:text-blue-400/80">
+                    {t('These are')} <strong>{t('default settings')}</strong> used when creating new agents or workflows.
+                    Each agent node can override these settings individually. Agent-specific configurations always take precedence over these defaults.
+                  </p>
+                </div>
+              </div>
+            </SettingsSection>
+          </div>
+        );
+
+      case 'pii-profiles':
+        return <PIIProfilesSettings />;
+
+      case 'appearance':
+        return (
+          <SettingsSection
+            title="Appearance & Theme"
+            description={t('Customize the look and feel of LangConfig')}
+            icon="palette"
+          >
+            <div>
+              <label className="text-sm font-medium mb-3 block" style={{ color: 'var(--color-text-primary)' }}>
+                {t('Color Theme')}
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                {Object.values(themes).map((theme) => (
+                  <button
+                    key={theme.name}
+                    onClick={() => handleThemeChange(theme.name)}
+                    className="p-4 rounded-lg border-2 transition-all text-left hover:border-primary/50"
+                    style={{
+                      borderColor: currentTheme === theme.name
+                        ? 'var(--color-primary)'
+                        : 'var(--color-border-dark)',
+                      backgroundColor: currentTheme === theme.name
+                        ? 'var(--color-primary)' + '10'
+                        : 'transparent'
+                    }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex gap-1">
+                        <div
+                          className="w-4 h-4 rounded-full"
+                          style={{ backgroundColor: theme.colors.primary }}
+                        />
+                        <div
+                          className="w-4 h-4 rounded-full"
+                          style={{ backgroundColor: theme.colors.backgroundDark }}
+                        />
+                        <div
+                          className="w-4 h-4 rounded-full"
+                          style={{ backgroundColor: theme.colors.panelDark }}
+                        />
+                      </div>
+                      <span className="font-medium text-sm" style={{ color: 'var(--color-text-primary)' }}>
+                        {theme.displayName}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </SettingsSection>
+        );
+
+      case 'about':
+        return (
+          <div>
+            <SettingsSection
+              title={t('About LangConfig')}
+              icon="info"
+            >
+              <div className="space-y-4">
+                {/* App Header */}
+                <div className="flex items-center gap-4 p-4 bg-white dark:bg-background-dark border border-gray-200 dark:border-border-dark rounded-lg">
+                  <div className="w-16 h-16 bg-primary/10 rounded-lg flex items-center justify-center">
+                    <span className="material-symbols-outlined text-3xl text-primary">account_tree</span>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-bold" style={{ color: 'var(--color-text-primary)' }}>
+                      {t('LangConfig')}
+                    </h3>
+                    <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
+                      {t('Powered by LangChain & LangGraph')}
+                    </p>
+                    <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                      {t('Version 0.1.0 (Alpha)')}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Built With */}
+                <div className="p-4 bg-white dark:bg-background-dark border border-gray-200 dark:border-border-dark rounded-lg">
+                  <h4 className="text-sm font-semibold mb-3" style={{ color: 'var(--color-text-primary)' }}>
+                    {t('Built with LangChain & LangGraph')}
+                  </h4>
+                  <p className="text-sm mb-3" style={{ color: 'var(--color-text-muted)' }}>
+                    {t("LangConfig is a visual interface for LangGraph. Every workflow you build is a real LangGraph state graph under the hood. We use these frameworks because they're excellent for building production AI applications.")}
+                  </p>
+                  <div className="flex gap-2">
+                    <a
+                      href="https://www.langchain.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium bg-white dark:bg-panel-dark border border-gray-300 dark:border-border-dark rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                      style={{ color: 'var(--color-text-primary)' }}
+                    >
+                      <span className="material-symbols-outlined text-sm">open_in_new</span>
+                      {t('LangChain')}
+                    </a>
+                    <a
+                      href="https://langchain-ai.github.io/langgraph/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium bg-white dark:bg-panel-dark border border-gray-300 dark:border-border-dark rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                      style={{ color: 'var(--color-text-primary)' }}
+                    >
+                      <span className="material-symbols-outlined text-sm">open_in_new</span>
+                      {t('LangGraph')}
+                    </a>
+                  </div>
+                </div>
+
+                {/* What You're Building With */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 bg-white dark:bg-background-dark border border-gray-200 dark:border-border-dark rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="material-symbols-outlined text-lg text-primary">settings_suggest</span>
+                      <h5 className="text-xs font-bold" style={{ color: 'var(--color-text-primary)' }}>{t('LangGraph Workflows')}</h5>
+                    </div>
+                    <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                      {t('State graphs with checkpointing')}
+                    </p>
+                  </div>
+
+                  <div className="p-3 bg-white dark:bg-background-dark border border-gray-200 dark:border-border-dark rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="material-symbols-outlined text-lg text-primary">smart_toy</span>
+                      <h5 className="text-xs font-bold" style={{ color: 'var(--color-text-primary)' }}>{t('LangChain Agents')}</h5>
+                    </div>
+                    <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                      {t('Tools, memory, and chains')}
+                    </p>
+                  </div>
+
+                  <div className="p-3 bg-white dark:bg-background-dark border border-gray-200 dark:border-border-dark rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="material-symbols-outlined text-lg text-primary">description</span>
+                      <h5 className="text-xs font-bold" style={{ color: 'var(--color-text-primary)' }}>{t('LangChain RAG')}</h5>
+                    </div>
+                    <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                      {t('Vector stores and retrievers')}
+                    </p>
+                  </div>
+
+                  <div className="p-3 bg-white dark:bg-background-dark border border-gray-200 dark:border-border-dark rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="material-symbols-outlined text-lg text-primary">code</span>
+                      <h5 className="text-xs font-bold" style={{ color: 'var(--color-text-primary)' }}>{t('Export to Code')}</h5>
+                    </div>
+                    <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                      {t('Production LangGraph Python')}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Mission */}
+                <div>
+                  <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--color-text-primary)' }}>
+                    {t('Our Mission')}
+                  </h4>
+                  <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                    {t("Making LangChain and LangGraph accessible to everyone through visual, no-code workflows. We believe these frameworks are the future of AI development, and everyone should be able to learn and use them - whether you're a developer, product manager, researcher, or just curious about AI agents.")}
+                  </p>
+                </div>
+              </div>
+            </SettingsSection>
+
+            {/* Tech Stack - Compact */}
+            <SettingsSection
+              title={t('Built With')}
+              icon="layers"
+            >
+              <div className="text-sm space-y-2" style={{ color: 'var(--color-text-muted)' }}>
+                <p><strong style={{ color: 'var(--color-text-primary)' }}>{t('Frontend:')}</strong> {t('React 19, TypeScript, Tailwind CSS, ReactFlow, Tauri 2')}</p>
+                <p><strong style={{ color: 'var(--color-text-primary)' }}>{t('Backend:')}</strong> {t('Python 3.11, FastAPI, LangChain v1.0, LangGraph, DeepAgents')}</p>
+                <p><strong style={{ color: 'var(--color-text-primary)' }}>{t('Database:')}</strong> {t('PostgreSQL 16 with pgvector for LangChain vector stores')}</p>
+                <p><strong style={{ color: 'var(--color-text-primary)' }}>{t('AI:')}</strong> {t('OpenAI, Anthropic, Google models via LangChain integrations')}</p>
+              </div>
+            </SettingsSection>
+
+            {/* Links and License */}
+            <SettingsSection
+              title={t('Resources')}
+              icon="link"
+            >
+              <div className="space-y-4">
+                <div className="flex gap-2 flex-wrap">
+                  <button className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white dark:bg-background-dark border border-gray-300 dark:border-border-dark rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors" style={{ color: 'var(--color-text-primary)' }}>
+                    <span className="material-symbols-outlined text-base">code</span>
+                    {t('GitHub')}
+                  </button>
+                </div>
+
+                <hr className="border-gray-200 dark:border-border-dark" />
+
+                <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                  <p className="font-semibold mb-1" style={{ color: 'var(--color-text-primary)' }}>{t('License')}</p>
+                  <p>{t('MIT License © 2025')}</p>
+                  <p className="mt-2">{t('Making agentic AI accessible to everyone.')}</p>
+                </div>
+              </div>
+            </SettingsSection>
+          </div>
+        );
+
+      default:
+        return (
+          <SettingsSection
+            title={t('Coming Soon')}
+            icon="construction"
+          >
+            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+              {t('This settings category is under development and will be available soon.')}
+            </p>
+          </SettingsSection>
+        );
+    }
+  };
+
+  // Show loading state while fetching settings from backend
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4"></div>
+          <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>{t('Loading settings...')}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render if settings haven't loaded yet
+  if (!generalSettings || !localModelsSettings || !workspaceSettings || !modelDefaultsSettings || !ragSettings) {
+    return null;
+  }
+
+  return (
+    <SettingsLayout
+      currentCategory={currentCategory}
+      onCategoryChange={setCurrentCategory}
+    >
+      {renderCategoryContent()}
+    </SettingsLayout>
+  );
+}

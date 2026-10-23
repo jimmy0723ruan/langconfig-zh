@@ -1,0 +1,7 @@
+src/features/settings/ui/LocalModelsSettings.tsx
+src/features/settings/ui/LocalWorkspaceSettings.tsx
+src/features/settings/ui/ModelDefaultsSettings.tsx
+src/features/settings/ui/PIIProfilesSettings.tsx
+src/features/settings/ui/SettingsLayout.tsx
+src/features/settings/ui/SettingsSection.tsx
+src/features/settings/ui/SettingsSidebar.tsx
